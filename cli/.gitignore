@@ -1,0 +1,10 @@
+# Build directory
+build/
+
+# Binary files
+devdb
+devdb.exe
+
+# IDE files
+.idea/
+.vscode/

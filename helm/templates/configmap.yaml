@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  labels:
+    {{- include "devdb.labels" . | nindent 4 }}
+data:
+  POSTGRES_IMAGE: {{ .Values.postgres.image | quote }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
+  BACKUP_LOCATION_URL: {{ .Values.postgres.backupLocationUrl | quote }}

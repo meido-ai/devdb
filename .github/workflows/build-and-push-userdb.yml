@@ -1,0 +1,72 @@
+name: Build and Push PostgreSQL Image
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - postgres-db/**
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - id: install-doppler
+      uses: ./.github/actions/install-doppler
+
+    - name: Get AWS Creds from Doppler
+      id: set-aws-creds
+      env:
+        DOPPLER_TOKEN: ${{ secrets.DOPPLER_AWS_DEV }}
+        DOPPLER_PROJECT: aws
+        DOPPLER_CONFIG: dev
+      run: |
+        echo "aws-access-key-id=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_ACCESS_KEY_ID --plain)" >> $GITHUB_OUTPUT
+        echo "aws-secret-access-key=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_SECRET_ACCESS_KEY --plain)" >> $GITHUB_OUTPUT
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ steps.set-aws-creds.outputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ steps.set-aws-creds.outputs.aws-secret-access-key }}
+        aws-region: us-west-1
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - id: generate-version
+      name: "Generate Version"
+      uses: paulhatch/semantic-version@v5.4.0
+      with:
+        # The prefix to use to identify tags
+        tag_prefix: "v"
+        # A string which, if present in a git commit, indicates that a change represents a
+        # major (breaking) change, supports regular expressions wrapped with '/'
+        major_pattern: "(MAJOR)"
+        # Same as above except indicating a minor change, supports regular expressions wrapped with '/'
+        minor_pattern: "(MINOR)"
+        # A string to determine the format of the version output
+        version_format: "${major}.${minor}.${patch}"
+        # If this is set to true, *every* commit will be treated as a new version.
+        bump_each_commit: true
+
+    - name: Build, tag, and push Dev DB API image to Amazon ECR
+      env:
+        ECR_REGISTRY: "827076270689.dkr.ecr.us-west-1.amazonaws.com/database-migration-anonymized"
+        ECR_REPOSITORY: users-db
+        IMAGE_TAG: ${{ steps.generate-version.outputs.version }}
+        SET_LATEST: true
+      working-directory: postgres-db
+      # The AWS ECR commands are used to add the "latest" tag to this image, which results in it being removed from an
+      # existing image (if such an image exists)
+      run: |
+        docker buildx build --build-arg VERSION="$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --push .
+        if [ $SET_LATEST = "true" ];then
+          MANIFEST=$(aws ecr batch-get-image --repository-name database-migration-anonymized/users-db --image-ids imageTag=$IMAGE_TAG --query 'images[].imageManifest' --output text)
+          aws ecr put-image --repository-name database-migration-anonymized/users-db --image-tag latest --image-manifest "$MANIFEST"
+        fi
+      shell: bash

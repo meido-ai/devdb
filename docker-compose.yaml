@@ -1,0 +1,14 @@
+version: "3.7"
+services:
+  api:
+    build:
+      context: api
+      dockerfile: Dockerfile
+    environment:
+      - PORT=3000
+    ports:
+      - 3000:3000
+      - 9229:9229
+    volumes:
+      - ./api/src:/app
+      - /var/run/docker.sock:/var/run/docker.sock

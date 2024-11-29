@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "devdb.fullname" . }}
+  labels:
+    {{- include "devdb.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  annotations:
+    {{- with .Values.ingress.tls.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+  - hosts:
+    - {{ .Values.ingress.tls.host }}
+    secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+  - {{- if .Values.ingress.tls.enabled }}
+    host: {{ .Values.ingress.tls.host }}
+    {{- end }}
+    http:
+      paths:
+      {{- range .Values.ingress.hosts }}
+      {{- range .paths }}
+        - path: {{ .path }}
+          pathType: {{ .pathType }}
+          backend:
+            service:
+              name: {{ include "devdb.fullname" $ }}
+              port:
+                number: {{ $.Values.service.port }}
+      {{- end }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,72 @@
+replicaCount: 1
+
+image:
+  repository: 827076270689.dkr.ecr.us-west-1.amazonaws.com/database-migration-anonymized/devdb-api
+  pullPolicy: Always
+  tag: "v0.0.56"
+
+nameOverride: "devdb"
+fullnameOverride: "devdb-api"
+
+serviceAccount:
+  create: true
+  name: "devdb"
+  # Add RBAC rules
+  clusterRole:
+    create: true
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "namespaces", "services"]
+        verbs: ["get", "list", "watch", "create", "delete"]
+
+service:
+  type: ClusterIP
+  port: 5000
+  targetPort: 5000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: ""  # Empty for HTTP version
+      paths:
+        - path: /
+          pathType: Prefix
+  
+  # TLS configuration
+  tls:
+    enabled: false
+    host: devdb-api.qa.testcloudprem.privacydynamics.io
+    secretName: devdb-api-tls
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-production"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+postgres:
+  image: "postgres:latest"
+  database: "mydb"
+  user: "postgres"
+  password: "postgres"
+  backupLocationUrl: "https://your-backup-location.com"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+env:
+  NODE_ENV: production
