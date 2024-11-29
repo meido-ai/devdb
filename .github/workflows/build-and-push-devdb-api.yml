@@ -32,40 +32,6 @@ jobs:
         version_format: "${major}.${minor}.${patch}"
         # If this is set to true, *every* commit will be treated as a new version.
         bump_each_commit: false
-
-    - name: Install Doppler CLI
-      id: install-doppler
-      uses: pvcy/install-doppler@v1.3
-    
-    - name: Create environment file
-      env:
-        DOPPLER_TOKEN: ${{ secrets.DOPPLER_DEVDB_PRD }}
-        DOPPLER_PROJECT: devdb
-        DOPPLER_CONFIG: prd
-      run: |
-        cd ./api
-        touch .env
-        echo POSTGRES_IMAGE=$(doppler secrets get POSTGRES_IMAGE --plain) >> .env
-        echo POSTGRES_DB=$(doppler secrets get POSTGRES_DB --plain) >> .env
-        echo POSTGRES_USER=$(doppler secrets get POSTGRES_USER --plain) >> .env
-        echo POSTGRES_PASSWORD=$(doppler secrets get POSTGRES_PASSWORD --plain) >> .env
-        echo RESTORE_FROM_BACKUP=True >> .env
-        echo RELEASE_VERSION=${{ steps.generate-version.outputs.version_tag }} >> .env
-
-        cat .env
-
-    - name: Ensure environment variables are set
-      run: |
-        cd ./api
-        source .env
-        if [[ -z "$POSTGRES_IMAGE" ]]; then
-          echo "POSTGRES_IMAGE is not set"
-          exit 1
-        fi
-        if [[ -z "$POSTGRES_DB" ]]; then
-          echo "POSTGRES_DB is not set"
-          exit 1
-        fi
     
     - name: Set up Node.js
       uses: actions/setup-node@v4

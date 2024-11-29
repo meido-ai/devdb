@@ -2,7 +2,7 @@ name: Build and Push PostgreSQL Image
 on:
   push:
     branches:
-      - main
+      - test-branch
     paths:
       - postgres-db/**
 jobs:
@@ -13,30 +13,6 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    - id: install-doppler
-      uses: ./.github/actions/install-doppler
-
-    - name: Get AWS Creds from Doppler
-      id: set-aws-creds
-      env:
-        DOPPLER_TOKEN: ${{ secrets.DOPPLER_AWS_DEV }}
-        DOPPLER_PROJECT: aws
-        DOPPLER_CONFIG: dev
-      run: |
-        echo "aws-access-key-id=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_ACCESS_KEY_ID --plain)" >> $GITHUB_OUTPUT
-        echo "aws-secret-access-key=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_SECRET_ACCESS_KEY --plain)" >> $GITHUB_OUTPUT
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ steps.set-aws-creds.outputs.aws-access-key-id }}
-        aws-secret-access-key: ${{ steps.set-aws-creds.outputs.aws-secret-access-key }}
-        aws-region: us-west-1
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
 
     - id: generate-version
       name: "Generate Version"
