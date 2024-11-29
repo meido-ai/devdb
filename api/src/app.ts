@@ -123,10 +123,31 @@ async function getLatestSnapshot(): Promise<SnapshotInfo | null> {
  * @swagger
  * /databases:
  *   get:
- *     description: Returns all databases
+ *     summary: Get all databases
+ *     description: Returns a list of all databases in the cluster
  *     responses:
  *       200:
  *         description: List of databases
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 databases:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       namespace:
+ *                         type: string
+ *                       labels:
+ *                         type: object
+ *                       creationTimestamp:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                       hostname:
+ *                         type: string
  *       500:
  *         description: Server error
  */
@@ -199,12 +220,11 @@ app.post("/databases", async (req: Request, res: Response) => {
   const owner = req.body.owner;
   const type = req.body.db_type;
   const namespaceName = req.body.name;
-  const projectId = req.body.project_id.toString();
 
-  if (!owner || !type || !namespaceName || !projectId) {
+  if (!owner || !type || !namespaceName) {
     return res
       .status(400)
-      .send("Missing required fields: owner, name, db_type, project_id");
+      .send("Missing required fields: owner, name, db_type");
   }
 
   if (type !== "postgres") {
@@ -215,17 +235,7 @@ app.post("/databases", async (req: Request, res: Response) => {
 
   try {
     const config = await getConfigMapData();
-    const { 
-      POSTGRES_VERSION,
-      POSTGRES_DB, 
-      POSTGRES_USER, 
-      POSTGRES_PASSWORD,
-      BACKUP_LOCATION_URL 
-    } = config;
-
-    if (!POSTGRES_VERSION || !POSTGRES_DB || !POSTGRES_USER || !POSTGRES_PASSWORD || !BACKUP_LOCATION_URL) {
-      return res.status(500).send("Missing required configuration in ConfigMap");
-    }
+    const { POSTGRES_VERSION } = config;  // We only need the version for the image
 
     const supportedVersions = ['13', '14', '15']; 
     if (!supportedVersions.includes(POSTGRES_VERSION)) {
@@ -298,22 +308,6 @@ app.post("/databases", async (req: Request, res: Response) => {
             ],
             env: [
               {
-                name: "POSTGRES_DB",
-                value: POSTGRES_DB,
-              },
-              {
-                name: "POSTGRES_USER",
-                value: POSTGRES_USER,
-              },
-              {
-                name: "POSTGRES_PASSWORD",
-                value: POSTGRES_PASSWORD,
-              },
-              {
-                name: "DB_BACKUP_URL",
-                value: BACKUP_LOCATION_URL,
-              },
-              {
                 name: "RESTORE_FROM_BACKUP",
                 value: RESTORE_FROM_BACKUP,
               },
@@ -338,7 +332,6 @@ app.post("/databases", async (req: Request, res: Response) => {
         labels: {
           "devdb/owner": owner,
           "devdb/type": type,
-          "devdb/projectId": projectId,
         },
       },
     });
@@ -413,7 +406,41 @@ app.post("/databases", async (req: Request, res: Response) => {
   }
 });
 
-// Simplified config endpoint
+/** 
+ * @swagger
+ * /config:
+ *   put:
+ *     summary: Update PostgreSQL configuration
+ *     description: Updates the PostgreSQL configuration in the ConfigMap
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - POSTGRES_VERSION
+ *               - POSTGRES_DB
+ *               - POSTGRES_USER
+ *               - POSTGRES_PASSWORD
+ *             properties:
+ *               POSTGRES_VERSION:
+ *                 type: string
+ *                 enum: ['13', '14', '15']
+ *               POSTGRES_DB:
+ *                 type: string
+ *               POSTGRES_USER:
+ *                 type: string
+ *               POSTGRES_PASSWORD:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Configuration updated successfully
+ *       400:
+ *         description: Invalid input parameters
+ *       500:
+ *         description: Server error
+ */
 app.put("/config", async (req: Request, res: Response) => {
   try {
     const { 
@@ -449,6 +476,27 @@ app.put("/config", async (req: Request, res: Response) => {
   }
 });
 
+/** 
+ * @swagger
+ * /databases/{namespace}:
+ *   delete:
+ *     summary: Delete a database
+ *     description: Deletes a database and its associated namespace
+ *     parameters:
+ *       - in: path
+ *         name: namespace
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Namespace of the database to delete
+ *     responses:
+ *       200:
+ *         description: Database deleted successfully
+ *       400:
+ *         description: Namespace does not exist or was not created by devdb api
+ *       500:
+ *         description: Server error
+ */
 app.delete("/databases/:namespace", async (req, res) => {
   const { namespace } = req.params;
   try {
@@ -499,6 +547,20 @@ app.delete("/databases/:namespace", async (req, res) => {
   }
 });
 
+/** 
+ * @swagger
+ * /initialize-snapshot:
+ *   post:
+ *     summary: Initialize a new database snapshot
+ *     description: Creates a new database snapshot from a backup URL
+ *     responses:
+ *       200:
+ *         description: Database snapshot created successfully
+ *       400:
+ *         description: Invalid backup URL or URL not accessible
+ *       500:
+ *         description: Error creating database snapshot
+ */
 app.post("/initialize-snapshot", async (req: Request, res: Response) => {
   try {
     const config = await getConfigMapData();
@@ -620,6 +682,35 @@ app.post("/initialize-snapshot", async (req: Request, res: Response) => {
   }
 });
 
+/** 
+ * @swagger
+ * /snapshots:
+ *   get:
+ *     summary: List all snapshots
+ *     description: Returns a list of all volume snapshots
+ *     responses:
+ *       200:
+ *         description: List of snapshots
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                   creationTime:
+ *                     type: string
+ *                   postgresVersion:
+ *                     type: string
+ *                   backupUrl:
+ *                     type: string
+ *                   status:
+ *                     type: boolean
+ *       500:
+ *         description: Error listing snapshots
+ */
 app.get("/snapshots", async (req: Request, res: Response) => {
   try {
     const response = await k8sCustomApi.listNamespacedCustomObject(

@@ -50,12 +50,11 @@ func (c *Client) ListDatabases() (*DatabaseList, error) {
     return &result, nil
 }
 
-func (c *Client) CreateDatabase(owner, name string, projectID int, dbType string) (map[string]interface{}, error) {
+func (c *Client) CreateDatabase(owner, name, dbType string) (map[string]interface{}, error) {
     data := map[string]interface{}{
-        "owner":      owner,
-        "name":       name,
-        "project_id": projectID,
-        "db_type":    dbType,
+        "owner":    owner,
+        "name":     name,
+        "db_type":  dbType,
     }
 
     jsonData, err := json.Marshal(data)
