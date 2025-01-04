@@ -1,0 +1,48 @@
+name: API Tests
+
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - '.github/workflows/api.yml'
+
+jobs:
+  test:
+    name: TypeScript Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: api/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install OpenAPI TypeScript
+        run: |
+          npm install -g openapi-typescript
+
+      - name: Install dependencies
+        working-directory: ./api
+        run: npm ci
+
+      - name: Generate API types
+        working-directory: ./api
+        run: npm run generate:types
+
+      - name: Build production code
+        working-directory: ./api
+        run: npm run build
+
+      - name: Build and run tests
+        working-directory: ./api
+        run: npm test -- --passWithNoTests

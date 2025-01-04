@@ -1,6 +1,6 @@
 package main
 
-import "github.com/john-craft/devdb-cli/cmd"
+import "github.com/meido-ai/devdb/cli/cmd"
 
 func main() {
     cmd.Execute()

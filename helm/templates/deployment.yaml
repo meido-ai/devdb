@@ -1,36 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "devdb.fullname" . }}
+  name: devdb-api
+  namespace: devdb
   labels:
-    {{- include "devdb.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
-      {{- include "devdb.selectorLabels" . | nindent 6 }}
+      app: devdb-api
   template:
     metadata:
       labels:
-        {{- include "devdb.selectorLabels" . | nindent 8 }}
+        app: devdb-api
     spec:
-      serviceAccountName: {{ include "devdb.serviceAccountName" . }}
+      serviceAccountName: devdb  # Use the created service account
       containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.targetPort }}
-              protocol: TCP
-          {{- if .Values.env }}
-          env:
-            {{- range $key, $value := .Values.env }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-          {{- end }}
-          {{- with .Values.resources }}
-          resources:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+      - name: devdb-api
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 5000
+    env:
+      - name: BACKUP_LOCATION
+        valueFrom:
+          configMapKeyRef:
+            name: {{ .Release.Name }}-backup-config
+            key: BACKUP_LOCATION

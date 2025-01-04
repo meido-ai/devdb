@@ -33,139 +33,47 @@ jobs:
         # If this is set to true, *every* commit will be treated as a new version.
         bump_each_commit: false
 
-    - name: Install Doppler CLI
-      id: install-doppler
-      uses: pvcy/install-doppler@v1.3
-    
-    - name: Create environment file
-      env:
-        DOPPLER_TOKEN: ${{ secrets.DOPPLER_DEVDB_PRD }}
-        DOPPLER_PROJECT: devdb
-        DOPPLER_CONFIG: prd
-      run: |
-        cd ./api
-        touch .env
-        echo POSTGRES_IMAGE=$(doppler secrets get POSTGRES_IMAGE --plain) >> .env
-        echo POSTGRES_DB=$(doppler secrets get POSTGRES_DB --plain) >> .env
-        echo POSTGRES_USER=$(doppler secrets get POSTGRES_USER --plain) >> .env
-        echo POSTGRES_PASSWORD=$(doppler secrets get POSTGRES_PASSWORD --plain) >> .env
-        echo RESTORE_FROM_BACKUP=True >> .env
-        echo RELEASE_VERSION=${{ steps.generate-version.outputs.version_tag }} >> .env
-
-        cat .env
-
-    - name: Ensure environment variables are set
-      run: |
-        cd ./api
-        source .env
-        if [[ -z "$POSTGRES_IMAGE" ]]; then
-          echo "POSTGRES_IMAGE is not set"
-          exit 1
-        fi
-        if [[ -z "$POSTGRES_DB" ]]; then
-          echo "POSTGRES_DB is not set"
-          exit 1
-        fi
-    
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
-
-    - uses: actions/cache@v4
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-
-    - name: Install dependencies
-      run: |
-        cd ./api
-        npm ci
-
-    - name: Compile TypeScript
-      run: |
-        cd ./api
-        npm run build
-
-    - name: Save build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-artifacts
-        path: |
-          ./api/.env
-          ./api/dist
-          ./api/node_modules
-          ./api/package*.json
-
   build-container-image:
     runs-on: ubuntu-latest
     needs: build-node-app
+    permissions:
+      contents: read
+      packages: write
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: build-artifacts
-        path: ./api
-
-    - name: Double check environment file
-      run: |
-        cd ./api
-        cat .env
-        
-    - name: Install Doppler CLI
-      id: install-doppler
-      uses: pvcy/install-doppler@v1.3
       
-    - name: Get AWS Creds from Doppler
-      id: set-aws-creds
-      env:
-        DOPPLER_TOKEN: ${{ secrets.DOPPLER_AWS_DEV }}
-        DOPPLER_PROJECT: aws
-        DOPPLER_CONFIG: dev
-      run: |
-        echo "aws-access-key-id=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_ACCESS_KEY_ID --plain)" >> $GITHUB_OUTPUT
-        echo "aws-secret-access-key=$(doppler secrets get GH_ACTIONS_UPLOAD_ECR_SECRET_ACCESS_KEY --plain)" >> $GITHUB_OUTPUT
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
       with:
-        aws-access-key-id: ${{ steps.set-aws-creds.outputs.aws-access-key-id }}
-        aws-secret-access-key: ${{ steps.set-aws-creds.outputs.aws-secret-access-key }}
-        aws-region: us-west-1
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create tag
       uses: rickstaa/action-create-tag@v1.7.2
       with:
         tag: ${{ needs.build-node-app.outputs.version_tag }}
  
-    - name: Build, tag, and push Dev DB API image to Amazon ECR
-      env:
-        ECR_REGISTRY: "827076270689.dkr.ecr.us-west-1.amazonaws.com/database-migration-anonymized"
-        ECR_REPOSITORY: devdb-api
-        IMAGE_TAG: ${{ needs.build-node-app.outputs.version_tag }}
-        SET_LATEST: true
-      working-directory: api
-      # The AWS ECR commands are used to add the "latest" tag to this image, which results in it being removed from an
-      # existing image (if such an image exists)
-      run: |
-        docker buildx build -f Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" --push .
-        if [ $SET_LATEST = "true" ];then
-          MANIFEST=$(aws ecr batch-get-image --repository-name database-migration-anonymized/devdb-api --image-ids imageTag=$IMAGE_TAG --query 'images[].imageManifest' --output text)
-          aws ecr put-image --repository-name database-migration-anonymized/devdb-api --image-tag latest --image-manifest "$MANIFEST"
-        fi
-      shell: bash
+    - name: Build and push Dev DB API image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api
+        push: true
+        tags: |
+          ghcr.io/${{ github.repository_owner }}/devdb-api:${{ needs.build-node-app.outputs.version_tag }}
+          ghcr.io/${{ github.repository_owner }}/devdb-api:latest
 
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [build-node-app, build-container-image]
+    permissions:
+      contents: write
+
+    steps:
     - name: Create a GitHub release
       uses: actions/github-script@v7.0.1
       with:

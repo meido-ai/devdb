@@ -1,0 +1,257 @@
+openapi: 3.0.0
+info:
+  title: DevDB API
+  version: 1.0.0
+  description: API for managing development databases
+
+paths:
+  /projects:
+    post:
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+    get:
+      summary: List projects
+      parameters:
+        - name: owner
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+
+  /projects/{name}:
+    delete:
+      operationId: deleteProjectsName
+      summary: Delete a project
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Project deleted successfully
+        '404':
+          description: Project not found
+
+  /databases:
+    post:
+      summary: Create a new database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatabaseRequest'
+      responses:
+        '201':
+          description: Database created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Database'
+    get:
+      summary: List databases
+      responses:
+        '200':
+          description: List of databases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Database'
+
+  /databases/{name}:
+    delete:
+      summary: Delete a database
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Database deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+components:
+  schemas:
+    DatabaseType:
+      type: string
+      enum: [postgres, mysql]
+
+    DatabaseCredentials:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+        database:
+          type: string
+      required:
+        - username
+        - database
+
+    DatabaseConnection:
+      type: object
+      properties:
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        password:
+          type: string
+        database:
+          type: string
+        useIAMAuth:
+          type: boolean
+        vpcEndpoint:
+          type: string
+      required:
+        - host
+        - port
+        - username
+        - database
+
+    Database:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [creating, running, stopped, error]
+        project:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        database:
+          type: string
+      required:
+        - name
+        - status
+
+    CreateDatabaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        dbType:
+          $ref: '#/components/schemas/DatabaseType'
+        dbVersion:
+          type: string
+        credentials:
+          $ref: '#/components/schemas/DatabaseCredentials'
+      required:
+        - name
+        - dbType
+        - dbVersion
+        - credentials
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        owner:
+          type: string
+          description: Owner of the project
+        name:
+          type: string
+          description: Name of the project
+        dbType:
+          $ref: '#/components/schemas/DatabaseType'
+          description: Type of database (postgres or mysql)
+        dbVersion:
+          type: string
+          description: Version of the database (e.g., '15.3' for PostgreSQL)
+        backupLocation:
+          type: string
+          description: S3 URL where the database backup (pg_dump output) is stored. Required before creating first database container.
+      required:
+        - owner
+        - name
+        - dbType
+        - dbVersion
+
+    DefaultDatabaseCredentials:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Default username for database access
+        password:
+          type: string
+          description: Default password for database access
+        database:
+          type: string
+          description: Default database name
+      required:
+        - username
+        - password
+        - database
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+        name:
+          type: string
+        dbType:
+          $ref: '#/components/schemas/DatabaseType'
+        dbVersion:
+          type: string
+        backupLocation:
+          type: string
+          description: S3 URL where the database backup (pg_dump output) is stored
+        databases:
+          type: array
+          items:
+            $ref: '#/components/schemas/Database'
+        defaultCredentials:
+          $ref: '#/components/schemas/DefaultDatabaseCredentials'
+      required:
+        - id
+        - owner
+        - name
+        - dbType
+        - dbVersion
+        - backupLocation
+        - defaultCredentials

@@ -3,44 +3,48 @@ package cmd
 import (
     "fmt"
     "github.com/spf13/cobra"
-    "github.com/john-craft/devdb-cli/pkg/api"
-)
-
-var (
-    postgresImage     string
-    postgresDB        string
-    postgresUser      string
-    postgresPassword  string
-    backupLocationURL string
+    "github.com/spf13/viper"
 )
 
 var configCmd = &cobra.Command{
     Use:   "config",
-    Short: "Update configuration",
-    Run: func(cmd *cobra.Command, args []string) {
-        client := api.NewClient(apiURL)
-        err := client.UpdateConfig(postgresImage, postgresDB, postgresUser, postgresPassword, backupLocationURL)
-        if err != nil {
-            fmt.Printf("Error: %v\n", err)
-            return
-        }
+    Short: "Configure CLI settings",
+    Long:  `Configure CLI settings like API URL and view current configuration.`,
+}
 
-        fmt.Println("Configuration updated successfully")
+var configSetAPICmd = &cobra.Command{
+    Use:   "set-api [url]",
+    Short: "Set the DevDB API URL",
+    Long:  `Set the URL for the DevDB API that the CLI will connect to.`,
+    Args:  cobra.ExactArgs(1),
+    Run: func(cmd *cobra.Command, args []string) {
+        apiURL := args[0]
+        viper.Set("api.url", apiURL)
+        err := viper.WriteConfig()
+        if err != nil {
+            // If config file doesn't exist, create it
+            err = viper.SafeWriteConfig()
+            if err != nil {
+                fmt.Printf("Error writing config: %v\n", err)
+                return
+            }
+        }
+        fmt.Printf("API URL set to: %s\n", apiURL)
+    },
+}
+
+var configViewCmd = &cobra.Command{
+    Use:   "view",
+    Short: "View current configuration",
+    Long:  `Display all current configuration settings.`,
+    Run: func(cmd *cobra.Command, args []string) {
+        fmt.Println("Current Configuration:")
+        fmt.Printf("API URL: %s\n", viper.GetString("api.url"))
     },
 }
 
 func init() {
-    configCmd.Flags().StringVar(&postgresImage, "postgres-image", "", "Postgres image to use")
-    configCmd.Flags().StringVar(&postgresDB, "postgres-db", "", "Database name")
-    configCmd.Flags().StringVar(&postgresUser, "postgres-user", "", "Database user")
-    configCmd.Flags().StringVar(&postgresPassword, "postgres-password", "", "Database password")
-    configCmd.Flags().StringVar(&backupLocationURL, "backup-location-url", "", "Backup location URL")
-
-    configCmd.MarkFlagRequired("postgres-image")
-    configCmd.MarkFlagRequired("postgres-db")
-    configCmd.MarkFlagRequired("postgres-user")
-    configCmd.MarkFlagRequired("postgres-password")
-    configCmd.MarkFlagRequired("backup-location-url")
-
     rootCmd.AddCommand(configCmd)
+    configCmd.AddCommand(configSetAPICmd)
+    configCmd.AddCommand(configViewCmd)
 }
