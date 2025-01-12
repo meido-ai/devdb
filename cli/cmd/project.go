@@ -68,8 +68,8 @@ var projectCreateCmd = &cobra.Command{
         cmd.Printf("  ID: %s\n", result.Id)
         cmd.Printf("  Name: %s\n", result.Name)
         cmd.Printf("  Owner: %s\n", result.Owner)
-        cmd.Printf("  Type: %s\n", result.DbType)
-        cmd.Printf("  Version: %s\n", result.DbVersion)
+        cmd.Printf("  DbType: %s\n", result.DbType)
+        cmd.Printf("  DbVersion: %s\n", result.DbVersion)
         return nil
     },
 }
@@ -115,8 +115,8 @@ var projectListCmd = &cobra.Command{
         cmd.Println("Projects:")
         for _, project := range *projects {
             cmd.Printf("- %s (Owner: %s)\n", project.Name, project.Owner)
-            cmd.Printf("  Type: %s\n", project.DbType)
-            cmd.Printf("  Version: %s\n", project.DbVersion)
+            cmd.Printf("  DbType: %s\n", project.DbType)
+            cmd.Printf("  DbVersion: %s\n", project.DbVersion)
         }
         return nil
     },
@@ -137,7 +137,7 @@ var projectDeleteCmd = &cobra.Command{
             return fmt.Errorf("error creating client: %v", err)
         }
 
-        resp, err := client.DeleteProjectsNameWithResponse(ctx, name)
+        resp, err := client.DeleteProjectWithResponse(ctx, name)
         if err != nil {
             return fmt.Errorf("error deleting project: %v", err)
         }

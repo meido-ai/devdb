@@ -39,12 +39,12 @@ paths:
                 items:
                   $ref: '#/components/schemas/Project'
 
-  /projects/{name}:
+  /projects/{projectId}:
     delete:
-      operationId: deleteProjectsName
+      operationId: deleteProject
       summary: Delete a project
       parameters:
-        - name: name
+        - name: projectId
           in: path
           required: true
           schema:
@@ -55,9 +55,15 @@ paths:
         '404':
           description: Project not found
 
-  /databases:
+  /projects/{projectId}/databases:
     post:
-      summary: Create a new database
+      summary: Create a new database for a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -72,10 +78,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Database'
     get:
-      summary: List databases
+      summary: List databases in a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: List of databases
+          description: List of databases in the project
           content:
             application/json:
               schema:
@@ -83,10 +95,37 @@ paths:
                 items:
                   $ref: '#/components/schemas/Database'
 
-  /databases/{name}:
-    delete:
-      summary: Delete a database
+  /projects/{projectId}/databases/{name}:
+    get:
+      summary: Get details of a database
       parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Database details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Database'
+        '404':
+          description: Database not found
+    delete:
+      summary: Delete a database from a project
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: name
           in: path
           required: true
@@ -107,7 +146,7 @@ components:
   schemas:
     DatabaseType:
       type: string
-      enum: [postgres, mysql]
+      enum: [postgres]
 
     DatabaseCredentials:
       type: object
@@ -172,17 +211,9 @@ components:
       properties:
         name:
           type: string
-        dbType:
-          $ref: '#/components/schemas/DatabaseType'
-        dbVersion:
-          type: string
-        credentials:
-          $ref: '#/components/schemas/DatabaseCredentials'
+          description: Name of the database instance
       required:
         - name
-        - dbType
-        - dbVersion
-        - credentials
 
     CreateProjectRequest:
       type: object
@@ -195,35 +226,18 @@ components:
           description: Name of the project
         dbType:
           $ref: '#/components/schemas/DatabaseType'
-          description: Type of database (postgres or mysql)
+          description: Type of database (only postgres is supported for now)
         dbVersion:
           type: string
           description: Version of the database (e.g., '15.3' for PostgreSQL)
         backupLocation:
           type: string
-          description: S3 URL where the database backup (pg_dump output) is stored. Required before creating first database container.
+          description: S3 URL of the backup file (e.g., s3://bucket/path/to/backup.dump)
       required:
         - owner
         - name
         - dbType
         - dbVersion
-
-    DefaultDatabaseCredentials:
-      type: object
-      properties:
-        username:
-          type: string
-          description: Default username for database access
-        password:
-          type: string
-          description: Default password for database access
-        database:
-          type: string
-          description: Default database name
-      required:
-        - username
-        - password
-        - database
 
     Project:
       type: object
@@ -255,3 +269,20 @@ components:
         - dbVersion
         - backupLocation
         - defaultCredentials
+
+    DefaultDatabaseCredentials:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Default username for database access
+        password:
+          type: string
+          description: Default password for database access
+        database:
+          type: string
+          description: Default database name
+      required:
+        - username
+        - password
+        - database

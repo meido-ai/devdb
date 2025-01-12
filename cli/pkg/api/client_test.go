@@ -10,6 +10,7 @@ import (
 
 type SwaggerSpec struct {
 	Paths map[string]map[string]struct {
+		OperationId string `yaml:"operationId"`
 		Parameters []struct {
 			Name     string `yaml:"name"`
 			In       string `yaml:"in"`
@@ -57,10 +58,16 @@ func TestAPISignatureConsistency(t *testing.T) {
 	// Check each path and method in the spec
 	for path, methods := range spec.Paths {
 		for method, details := range methods {
-			// Convert method and path to expected function name
-			methodPrefix := strings.Title(strings.ToLower(method))
-			pathPart := convertPathToMethodName(path)
-			methodName := methodPrefix + pathPart + "WithResponse"
+			var methodName string
+			if details.OperationId != "" {
+				// If operationId is provided, use it
+				methodName = strings.Title(details.OperationId) + "WithResponse"
+			} else {
+				// Otherwise, derive from path
+				methodPrefix := strings.Title(strings.ToLower(method))
+				pathPart := convertPathToMethodName(path)
+				methodName = methodPrefix + pathPart + "WithResponse"
+			}
 
 			// Find the corresponding method on the client
 			_, ok := clientType.MethodByName(methodName)

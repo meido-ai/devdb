@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ebs-csi-controller-sa
+  namespace: kube-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::${AWS_ACCOUNT_ID}:role/ebs-csi-driver-role
+
+---
+apiVersion: iam.aws.amazon.com/v1
+kind: IAMPolicy
+metadata:
+  name: ebs-csi-driver-policy
+spec:
+  policy: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ec2:CreateSnapshot",
+            "ec2:DeleteSnapshot",
+            "ec2:GetSnapshotState",
+            "ec2:DescribeSnapshots",
+            "ec2:ModifyVolume",
+            "ec2:DescribeVolumes",
+            "ec2:CreateVolume",
+            "ec2:DeleteVolume",
+            "ec2:DescribeVolumesModifications"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": [
+            "kms:CreateGrant",
+            "kms:ListGrants",
+            "kms:RevokeGrant",
+            "kms:Encrypt",
+            "kms:Decrypt",
+            "kms:ReEncrypt*",
+            "kms:GenerateDataKey*",
+            "kms:DescribeKey"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }

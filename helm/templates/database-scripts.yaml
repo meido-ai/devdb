@@ -18,48 +18,12 @@ data:
       sleep 1
     done
     
-    if [ ! -z "$DB_BACKUP_URL" ]; then
-      echo "Downloading backup from $DB_BACKUP_URL"
-      curl -o /tmp/dump.backup $DB_BACKUP_URL
-      
-      echo "Restoring backup to database $POSTGRES_DB"
-      pg_restore -U $POSTGRES_USER -d $POSTGRES_DB /tmp/dump.backup
+    if [ ! -z "$DB_BACKUP_PATH" ]; then
+      echo "Restoring backup from $DB_BACKUP_PATH"
+      pg_restore -U $POSTGRES_USER -d $POSTGRES_DB $DB_BACKUP_PATH
     else
-      echo "No backup URL provided, starting with empty database"
+      echo "No backup path provided, starting with empty database"
     fi
     
     # Wait for the PostgreSQL process
     wait $POSTGRES_PID
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mysql-restore-script
-  namespace: {{ .Values.sharedNamespace | default "devdb-databases" }}
-  labels:
-    {{- include "common.labels" . | nindent 4 }}
-data:
-  restore-backup.sh: |
-    #!/bin/bash
-    
-    # Start MySQL in the background
-    docker-entrypoint.sh mysqld &
-    MYSQL_PID=$!
-    
-    # Wait for MySQL to be ready
-    until mysqladmin ping -h localhost -u $MYSQL_USER --password=$MYSQL_PASSWORD; do
-      sleep 1
-    done
-    
-    if [ ! -z "$DB_BACKUP_URL" ]; then
-      echo "Downloading backup from $DB_BACKUP_URL"
-      curl -o /tmp/dump.sql $DB_BACKUP_URL
-      
-      echo "Restoring backup to database $MYSQL_DATABASE"
-      mysql -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE < /tmp/dump.sql
-    else
-      echo "No backup URL provided, starting with empty database"
-    fi
-    
-    # Wait for the MySQL process
-    wait $MYSQL_PID

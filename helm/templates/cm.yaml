@@ -1,8 +1,14 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-backup-config
+  name: {{ .Release.Name }}-config
   labels:
     {{- include "common.labels" . | nindent 4 }}
 data:
-  BACKUP_LOCATION: {{ .Values.backupLocation | quote }}
+  # AWS configuration
+  AWS_REGION: {{ .Values.aws.region | default "us-west-2" | quote }}
+  AWS_EBS_ENABLED: {{ .Values.aws.ebsEnabled | default "false" | quote }}
+
+  # API configuration
+  LOG_LEVEL: {{ .Values.api.logLevel | default "info" | quote }}
+  KUBERNETES_NAMESPACE: {{ .Release.Namespace }}

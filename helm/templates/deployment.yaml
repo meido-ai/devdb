@@ -18,13 +18,34 @@ spec:
       serviceAccountName: devdb  # Use the created service account
       containers:
       - name: devdb-api
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        image: ghcr.io/meido-ai/devdb-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
-    env:
-      - name: BACKUP_LOCATION
-        valueFrom:
-          configMapKeyRef:
-            name: {{ .Release.Name }}-backup-config
-            key: BACKUP_LOCATION
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-config
+        - secretRef:
+            name: {{ .Release.Name }}-secrets
+        env:
+        - name: REDIS_URL
+          value: redis://{{ .Release.Name }}-redis:6379
