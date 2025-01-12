@@ -1,15 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "devdb.fullname" . }}
+  name: devdb-api
+  namespace: devdb
   labels:
-    {{- include "devdb.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
-      protocol: TCP
-      name: http
   selector:
-    {{- include "devdb.selectorLabels" . | nindent 4 }}
+    app: devdb-api
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000

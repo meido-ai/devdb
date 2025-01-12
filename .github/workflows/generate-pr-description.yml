@@ -1,0 +1,17 @@
+name: Generate PR Description
+on:
+  pull_request:
+    types: [opened, synchronize]
+permissions:
+  pull-requests: write
+  contents: read
+jobs:
+  generate-description:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: meido-ai/pr-summarizer@v1.0.3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model-provider: 'anthropic'
+          model: 'claude-3-sonnet-20240229'

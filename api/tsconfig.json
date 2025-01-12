@@ -5,7 +5,12 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*", "swagger.js"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

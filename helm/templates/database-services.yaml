@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-postgres-service
+  namespace: {{ .Values.sharedNamespace | default "devdb-databases" }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+    devdb/type: postgres
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+spec:
+  type: LoadBalancer
+  selector:
+    devdb/type: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-mysql-service
+  namespace: {{ .Values.sharedNamespace | default "devdb-databases" }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+    devdb/type: mysql
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+spec:
+  type: LoadBalancer
+  selector:
+    devdb/type: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306

@@ -1,0 +1,38 @@
+name: CLI Tests
+
+on:
+  pull_request:
+    paths:
+      - 'cli/**'
+      - '.github/workflows/cli.yml'
+      - 'api/openapi/**'
+
+jobs:
+  test:
+    name: Run Go Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ./cli
+        run: |
+          go mod download
+          go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+      - name: Generate API client
+        working-directory: ./cli
+        run: |
+          oapi-codegen -package api -generate types,client ../api/openapi/openapi.yaml > pkg/api/client_gen.go
+          go mod tidy
+
+      - name: Run tests
+        working-directory: ./cli
+        run: go test -v ./...
