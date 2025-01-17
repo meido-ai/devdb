@@ -13,6 +13,8 @@ import { pipeline } from 'stream/promises';
 type Database = components['schemas']['Database'];
 type Project = components['schemas']['Project'];
 type CreateProjectRequest = components['schemas']['CreateProjectRequest'];
+type DatabaseType = components['schemas']['DatabaseType'];
+type DatabaseCredentials = components['schemas']['DatabaseCredentials'];
 
 const app = express();
 const port: number = 5000;
@@ -48,37 +50,6 @@ async function verifyURL(url: string): Promise<boolean> {
   } catch (error) {
     return false;
   }
-}
-
-const filteredNamespaces = (namespaces: k8s.V1Namespace[]) => {
-  // This label is used to identify namespaces that were created by devdb-api
-  const labelKeyForNamespacesCreatedByDevDbApi = "devdb/type";
-  const pattern = /kube|default/i;
-
-  return namespaces
-    .map((ns) => ({
-      name: ns.metadata?.name,
-      type: ns.metadata?.name?.search(pattern) !== -1 ? "system" : "user",
-      labels: ns.metadata?.labels || {},
-      creationTimestamp: ns.metadata?.creationTimestamp,
-      status: ns.status,
-    }))
-    .filter(
-      (ns) =>
-        ns.type === "user" &&
-        ns.labels &&
-        ns.labels.hasOwnProperty(labelKeyForNamespacesCreatedByDevDbApi)
-    );
-};
-
-enum DatabaseType {
-  postgres = 'postgres'
-}
-
-interface DatabaseCredentials {
-  username: string;
-  password?: string;
-  database: string;
 }
 
 interface Config {
@@ -126,162 +97,15 @@ const getStorageConfig = () => {
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
-const projects: Record<string, Project> = {};
-
-function generateDatabaseId(name: string): string {
-  return `db-${name}-${Date.now()}`;
-}
-
 function generateProjectId(owner: string, name: string): string {
   return `${owner}-${name}`;
 }
 
-function getBackupPaths(type: 'project', id: string, instanceName?: string): {
-  backupDir: string;
-  metadataPath: string;
-} {
-  const s3Bucket = process.env.S3_BUCKET || 'devdb-backups';
-  return {
-    backupDir: `s3://${s3Bucket}/projects/${id}/instances/${instanceName}/backups`,
-    metadataPath: `s3://${s3Bucket}/projects/${id}/instances/${instanceName}/metadata.json`
-  };
-}
-
 const SHARED_NAMESPACE = 'devdb-databases';
-
-const getCurrentNamespace = (): string => {
-  // In a Kubernetes cluster, namespace is available at this path
-  try {
-    return require('fs').readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/namespace', 'utf8');
-  } catch (error) {
-    // Fallback for local development
-    return 'default';
-  }
-};
-
-const CURRENT_NAMESPACE = getCurrentNamespace();
-
 const POSTGRES_SERVICE_NAME = 'shared-postgres-service';
 
-import { Signer } from "@aws-sdk/rds-signer";
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
-
-const execAsync = promisify(exec);
-
-const BACKUP_BUCKET = process.env.BACKUP_BUCKET || 'devdb-backups';
-
-async function ensureBackupBucket() {
-  try {
-    // Check if bucket exists
-    try {
-      await s3Client.send(new HeadBucketCommand({ Bucket: BACKUP_BUCKET }));
-    } catch (error: any) {
-      if (error.name === 'NotFound') {
-        // Create bucket if it doesn't exist
-        await s3Client.send(new CreateBucketCommand({ 
-          Bucket: BACKUP_BUCKET,
-          ObjectOwnership: 'BucketOwnerPreferred'
-        }));
-        
-        // Set bucket policy for public access if needed
-        // This should be configured through AWS console or IaC for production
-      }
-    }
-  } catch (error) {
-    console.error('Error ensuring backup bucket exists:', error);
-    throw error;
-  }
-}
-
-interface DatabaseConnection {
-  host: string;
-  port: number;
-  username: string;
-  password?: string;
-  database: string;
-  useIAMAuth?: boolean;
-  vpcEndpoint?: string;
-}
-
-async function getConnectionPassword(connection: DatabaseConnection): Promise<string> {
-  if (connection.useIAMAuth) {
-    try {
-      const signer = new Signer({
-        region: process.env.AWS_REGION,
-        hostname: connection.vpcEndpoint || connection.host,
-        port: connection.port,
-        username: connection.username
-      });
-      
-      return signer.getAuthToken();
-    } catch (error) {
-      console.error('Error generating RDS auth token:', error);
-      throw new Error('Failed to generate RDS authentication token. Check IAM permissions and network connectivity.');
-    }
-  }
-  
-  if (!connection.password) {
-    throw new Error('Password is required when not using IAM authentication');
-  }
-  
-  return connection.password;
-}
-
-async function createPostgresBackup(connection: DatabaseConnection): Promise<string> {
-  const tempDir = os.tmpdir();
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupFile = path.join(tempDir, `backup-${timestamp}.dump`);
-  
-  try {
-    // Get password or IAM token
-    const password = await getConnectionPassword(connection);
-    
-    const env = {
-      PGPASSWORD: password,
-      ...process.env
-    };
-
-    // Use appropriate hostname (VPC endpoint or direct)
-    const host = connection.vpcEndpoint || connection.host;
-
-    // Add SSL mode for RDS connections
-    const sslMode = 'require';  // RDS requires SSL
-
-    try {
-      // Test connection first
-      await execAsync(
-        `pg_isready -h ${host} -p ${connection.port} -U ${connection.username}`,
-        { env }
-      );
-    } catch (error) {
-      console.error('Database connection test failed:', error);
-      throw new Error(
-        'Failed to connect to database. Check:\n' +
-        '1. VPC connectivity (API must be in same VPC or have VPC peering)\n' +
-        '2. Security group rules (allow port 5432 from API security group)\n' +
-        '3. Database credentials and permissions\n' +
-        '4. Network ACLs and routing tables'
-      );
-    }
-
-    // Create backup using pg_dump with SSL
-    await execAsync(
-      `pg_dump -Fc --no-acl --no-owner -h ${host} -p ${connection.port} ` +
-      `-U ${connection.username} -d ${connection.database} ` +
-      `--sslmode=${sslMode} -f ${backupFile}`,
-      { env }
-    );
-
-    return backupFile;
-  } catch (error) {
-    console.error('Error creating PostgreSQL backup:', error);
-    throw error;
-  }
-}
 
 // Function to validate and download backup
 async function prepareBackup(backupUrl: string): Promise<string | null> {
@@ -398,16 +222,12 @@ app.get("/projects/:projectId/databases", async (req: Request, res: Response) =>
       return res.status(404).send("Project not found");
     }
 
-    const pods = await k8sApi.listNamespacedPod(
-      SHARED_NAMESPACE,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      `devdb/projectId=${projectId}`
-    );
+    const pods = await k8sApi.listNamespacedPod({
+      namespace: SHARED_NAMESPACE,
+      labelSelector: `devdb/projectId=${projectId}`
+    });
 
-    const databases = pods.body.items.map(pod => ({
+    const databases = pods.items.map((pod: k8s.V1Pod) => ({
       name: pod.metadata?.name || '',
       status: pod.status?.phase?.toLowerCase() || 'unknown',
       project: projectId,
@@ -426,10 +246,10 @@ app.get("/projects/:projectId/databases", async (req: Request, res: Response) =>
 
 app.post("/projects/:projectId/databases", async (req: Request, res: Response) => {
   const { projectId } = req.params;
-  const { name } = req.body;
+  const { name, backupUrl } = req.body;
 
   if (!name) {
-    return res.status(400).send("Missing required field: name");
+    return res.status(400).send("Name is required");
   }
 
   try {
@@ -438,208 +258,194 @@ app.post("/projects/:projectId/databases", async (req: Request, res: Response) =
       return res.status(404).send("Project not found");
     }
 
-    // Check if this is the first database and if we have a backup location
-    const hasRunningDatabases = project.databases && project.databases.length > 0;
-    if (!hasRunningDatabases && !project.backupLocation) {
-      return res.status(400).send(
-        "Cannot create first database container without a backup location. " +
-        "Please set the backup location for this project before creating databases."
-      );
-    }
+    const kc = new k8s.KubeConfig();
+    kc.loadFromDefault();
+    const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 
-    if (project.dbType !== DatabaseType.postgres) {
-      return res.status(400).send("Only PostgreSQL databases are currently supported");
-    }
+    // Check if there are any existing pods for this project
+    const existingPods = await k8sApi.listNamespacedPod({
+      namespace: SHARED_NAMESPACE,
+      labelSelector: `devdb/projectId=${project.id}`
+    });
 
-    const ownerPrefix = project.owner.slice(0, 7).toLowerCase();
-    const podName = `${ownerPrefix}-${project.dbType}-${project.name}`;
-    const pvcName = `${podName}-data`;
+    const podName = name;
+    const pvcName = `${name}-data`;
+    let useSnapshot = false;
+    let latestSnapshot = null;
 
-    try {
-      // Ensure shared namespace exists
-      try {
-        await k8sApi.createNamespace({
-          metadata: {
-            name: SHARED_NAMESPACE,
-            labels: {
-              "devdb/type": "shared-database-namespace",
-            },
-          },
-        });
-      } catch (error: any) {
-        // Ignore if namespace already exists
-        if (error.response?.statusCode !== 409) {
-          throw error;
-        }
+    // If backupUrl is provided and this is the first database, prepare the backup
+    let backupPath = null;
+    if (backupUrl && existingPods.items.length === 0) {
+      backupPath = await prepareBackup(backupUrl);
+      if (!backupPath) {
+        return res.status(400).send("Failed to prepare backup from URL");
       }
+    }
 
-      // Check for existing databases and volume snapshots
-      const existingPods = await k8sApi.listNamespacedPod(
+    if (existingPods.items.length > 0) {
+      // This is not the first database for this project
+      latestSnapshot = await getLatestVolumeSnapshot(project.id, SHARED_NAMESPACE);
+      if (latestSnapshot) {
+        useSnapshot = true;
+      }
+    }
+
+    // Create PVC, either from scratch or from snapshot
+    if (useSnapshot && latestSnapshot) {
+      await createPVCFromSnapshot(
+        pvcName,
         SHARED_NAMESPACE,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        `devdb/projectId=${project.id}`
+        latestSnapshot.metadata.name
       );
-
-      let useSnapshot = false;
-      let latestSnapshot = null;
-
-      if (existingPods.body.items.length > 0) {
-        // This is not the first database for this project
-        latestSnapshot = await getLatestVolumeSnapshot(project.id, SHARED_NAMESPACE);
-        if (latestSnapshot) {
-          useSnapshot = true;
-        }
-      }
-
-      // Create PVC, either from scratch or from snapshot
-      if (useSnapshot && latestSnapshot) {
-        await createPVCFromSnapshot(
-          pvcName,
-          SHARED_NAMESPACE,
-          latestSnapshot.metadata.name
-        );
-      } else {
-        await createPersistentVolumeClaim(pvcName, SHARED_NAMESPACE);
-      }
-
-      // Create pod manifest
-      const podManifest: k8s.V1Pod = {
-        apiVersion: "v1",
-        kind: "Pod",
-        metadata: {
-          name: podName,
-          namespace: SHARED_NAMESPACE,
-          labels: {
-            "devdb/type": String(project.dbType),
-            "devdb/owner": project.owner,
-            "devdb/projectId": project.id,
-            "app": podName // Add label for service selector
-          },
-        },
-        spec: {
-          initContainers: useSnapshot ? [] : [
-            {
-              name: "init-script",
-              image: "busybox",
-              command: ["sh", "-c", "chmod +x /scripts/restore-backup.sh"],
-              volumeMounts: [
-                {
-                  name: "restore-script",
-                  mountPath: "/scripts"
-                }
-              ]
-            }
-          ],
-          containers: [
-            {
-              name: String(project.dbType),
-              image: `${String(project.dbType)}:${project.dbVersion}`,
-              command: useSnapshot ? undefined : ["/scripts/restore-backup.sh"],
-              env: [
-                {
-                  name: `${String(project.dbType).toUpperCase()}_DB`,
-                  value: project.name,
-                },
-                {
-                  name: `${String(project.dbType).toUpperCase()}_USER`,
-                  value: project.defaultCredentials.username
-                },
-                {
-                  name: `${String(project.dbType).toUpperCase()}_PASSWORD`,
-                  value: project.defaultCredentials.password
-                },
-              ],
-              volumeMounts: [
-                ...(!useSnapshot ? [{
-                  name: "restore-script",
-                  mountPath: "/scripts"
-                }] : []),
-                {
-                  name: "data",
-                  mountPath: "/var/lib/postgresql/data"
-                }
-              ]
-            },
-          ],
-          volumes: [
-            ...(!useSnapshot ? [{
-              name: "restore-script",
-              configMap: {
-                name: `${project.dbType}-restore-script`
-              }
-            }] : []),
-            {
-              name: "data",
-              persistentVolumeClaim: {
-                claimName: pvcName
-              }
-            }
-          ]
-        },
-      };
-
-      await k8sApi.createNamespacedPod(SHARED_NAMESPACE, podManifest);
-
-      // Create service for the pod
-      const serviceManifest: k8s.V1Service = {
-        apiVersion: "v1",
-        kind: "Service",
-        metadata: {
-          name: podName,
-          namespace: SHARED_NAMESPACE,
-          labels: {
-            "devdb/type": String(project.dbType),
-            "devdb/owner": project.owner,
-            "devdb/projectId": project.id
-          },
-          annotations: {
-            "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
-            "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
-            "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
-          }
-        },
-        spec: {
-          type: "LoadBalancer",
-          ports: [
-            {
-              port: 5432,
-              targetPort: 5432,
-              protocol: "TCP"
-            }
-          ],
-          selector: {
-            app: podName
-          }
-        }
-      };
-
-      await k8sApi.createNamespacedService(SHARED_NAMESPACE, serviceManifest);
-
-      // Create volume snapshot if this is the first database
-      if (!useSnapshot) {
-        try {
-          // Wait a bit for the database to initialize
-          await new Promise(resolve => setTimeout(resolve, 30000));
-          await createVolumeSnapshot(pvcName, SHARED_NAMESPACE);
-        } catch (error) {
-          console.error('Error creating volume snapshot:', error);
-          // Don't fail the request if snapshot creation fails
-        }
-      }
-      
-      res.json({ 
-        result: "success", 
-        name: podName,
-        service: POSTGRES_SERVICE_NAME,
-        restoredFromSnapshot: useSnapshot
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).send("Error creating database pod and service.");
+    } else {
+      await createPersistentVolumeClaim(pvcName, SHARED_NAMESPACE);
     }
+
+    // Create pod manifest
+    const podManifest: k8s.V1Pod = {
+      apiVersion: "v1",
+      kind: "Pod",
+      metadata: {
+        name: podName,
+        namespace: SHARED_NAMESPACE,
+        labels: {
+          "devdb/type": String(project.dbType),
+          "devdb/owner": project.owner,
+          "devdb/projectId": project.id,
+          "app": podName
+        },
+      },
+      spec: {
+        initContainers: backupPath ? [
+          {
+            name: "restore-backup",
+            image: "postgres:latest",
+            command: ["pg_restore", "-U", "postgres", "-d", "postgres", "/backup/backup.dump"],
+            env: [
+              {
+                name: "PGPASSWORD",
+                value: "postgres"  // This should be replaced with a secure password
+              }
+            ],
+            volumeMounts: [
+              {
+                name: "data",
+                mountPath: "/var/lib/postgresql/data"
+              },
+              {
+                name: "backup",
+                mountPath: "/backup"
+              }
+            ]
+          }
+        ] : [],
+        containers: [
+          {
+            name: String(project.dbType),
+            image: `${String(project.dbType)}:${project.dbVersion}`,
+            env: [
+              {
+                name: `${String(project.dbType).toUpperCase()}_DB`,
+                value: project.name,
+              },
+              {
+                name: `${String(project.dbType).toUpperCase()}_USER`,
+                value: project.defaultCredentials.username
+              },
+              {
+                name: `${String(project.dbType).toUpperCase()}_PASSWORD`,
+                value: project.defaultCredentials.password
+              },
+            ],
+            volumeMounts: [
+              {
+                name: "data",
+                mountPath: "/var/lib/postgresql/data"
+              }
+            ]
+          },
+        ],
+        volumes: [
+          {
+            name: "data",
+            persistentVolumeClaim: {
+              claimName: pvcName
+            }
+          },
+          ...(backupPath ? [
+            {
+              name: "backup",
+              hostPath: {
+                path: path.dirname(backupPath),
+                type: "Directory"
+              }
+            }
+          ] : [])
+        ]
+      },
+    };
+
+    await k8sApi.createNamespacedPod({
+      namespace: SHARED_NAMESPACE,
+      body: podManifest
+    });
+
+    // Create service for the pod
+    const serviceManifest: k8s.V1Service = {
+      apiVersion: "v1",
+      kind: "Service",
+      metadata: {
+        name: podName,
+        namespace: SHARED_NAMESPACE,
+        labels: {
+          "devdb/type": String(project.dbType),
+          "devdb/owner": project.owner,
+          "devdb/projectId": project.id
+        },
+        annotations: {
+          "service.beta.kubernetes.io/aws-load-balancer-type": "nlb",
+          "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
+          "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type": "ip"
+        }
+      },
+      spec: {
+        type: "LoadBalancer",
+        ports: [
+          {
+            port: 5432,
+            targetPort: 5432,
+            protocol: "TCP"
+          }
+        ],
+        selector: {
+          app: podName
+        }
+      }
+    };
+
+    await k8sApi.createNamespacedService({
+      namespace: SHARED_NAMESPACE,
+      body: serviceManifest
+    });
+
+    // Create volume snapshot if this is the first database
+    if (!useSnapshot) {
+      try {
+        // Wait a bit for the database to initialize
+        await new Promise(resolve => setTimeout(resolve, 30000));
+        await createVolumeSnapshot(pvcName, SHARED_NAMESPACE);
+      } catch (error) {
+        console.error('Error creating volume snapshot:', error);
+        // Don't fail the request if snapshot creation fails
+      }
+    }
+    
+    res.json({ 
+      result: "success", 
+      name: podName,
+      service: POSTGRES_SERVICE_NAME,
+      restoredFromSnapshot: useSnapshot
+    });
   } catch (error) {
     console.error(error);
     res.status(500).send("Error creating database pod and service.");
@@ -656,11 +462,17 @@ app.delete("/projects/:projectId/databases/:name", async (req: Request, res: Res
     }
 
     // Delete the pod
-    await k8sApi.deleteNamespacedPod(name, SHARED_NAMESPACE);
+    await k8sApi.deleteNamespacedPod({
+      name: name,
+      namespace: SHARED_NAMESPACE
+    });
     
     // Delete the associated service
     try {
-      await k8sApi.deleteNamespacedService(name, SHARED_NAMESPACE);
+      await k8sApi.deleteNamespacedService({
+        name: name,
+        namespace: SHARED_NAMESPACE
+      });
     } catch (error: any) {
       // Don't fail if service doesn't exist
       if (error.response?.statusCode !== 404) {
@@ -672,62 +484,6 @@ app.delete("/projects/:projectId/databases/:name", async (req: Request, res: Res
   } catch (error) {
     console.error(error);
     res.status(500).send("Error deleting database");
-  }
-});
-
-app.post("/projects/:id/backup", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { connection } = req.body as { connection: DatabaseConnection };
-
-    // Validate project exists
-    const project = await getProject(id);
-    if (!project) {
-      return res.status(404).send("Project not found");
-    }
-
-    // Validate connection details
-    if (!connection || !connection.host || !connection.port || 
-        !connection.username || !connection.database) {
-      return res.status(400).send("Missing required connection details");
-    }
-
-    // Ensure backup bucket exists
-    await ensureBackupBucket();
-
-    // Create backup based on database type
-    let backupFile: string;
-    if (project.dbType === DatabaseType.postgres) {
-      backupFile = await createPostgresBackup(connection);
-    } else {
-      return res.status(400).send("Unsupported database type");
-    }
-
-    // Get backup paths for this project
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const instanceName = `${project.owner}-${project.name}`;
-    const { backupDir } = getBackupPaths('project', project.id, instanceName);
-    
-    // Upload backup to S3
-    const objectKey = `${backupDir}/${timestamp}.${project.dbType === DatabaseType.postgres ? 'dump' : 'sql'}`;
-    
-    await s3Client.send(new PutObjectCommand({
-      Bucket: BACKUP_BUCKET,
-      Key: objectKey,
-      Body: fs.createReadStream(backupFile),
-      ContentType: project.dbType === DatabaseType.postgres ? 'application/octet-stream' : 'text/plain'
-    }));
-
-    // Clean up temporary file
-    fs.unlinkSync(backupFile);
-
-    res.json({
-      message: "Backup created successfully",
-      backupFile: objectKey
-    });
-  } catch (error) {
-    console.error('Error creating backup:', error);
-    res.status(500).send("Error creating backup");
   }
 });
 
@@ -762,14 +518,14 @@ async function createVolumeSnapshot(
   };
 
   try {
-    const response = await k8sApiExt.createNamespacedCustomObject(
-      "snapshot.storage.k8s.io",
-      "v1",
-      namespace,
-      "volumesnapshots",
-      snapshotManifest
-    );
-    return response.body;
+    const response = await k8sApiExt.createNamespacedCustomObject({
+      group: "snapshot.storage.k8s.io",
+      version: "v1",
+      namespace: namespace,
+      plural: "volumesnapshots",
+      body: snapshotManifest
+    });
+    return response;
   } catch (error) {
     console.error('Error creating volume snapshot:', error);
     // Return null instead of throwing to handle the error gracefully
@@ -791,29 +547,14 @@ async function getLatestVolumeSnapshot(
   const k8sApiExt = kc.makeApiClient(k8s.CustomObjectsApi);
 
   try {
-    const response = await k8sApiExt.listNamespacedCustomObject(
-      'snapshot.storage.k8s.io',
-      'v1',
-      namespace,
-      'volumesnapshots',
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      `projectId=${projectId}`
-    ) as {
-      response: IncomingMessage;
-      body: {
-        items: Array<{
-          metadata: {
-            name: string;
-            creationTimestamp: string;
-          };
-        }>;
-      };
-    };
+    const response = await k8sApiExt.listNamespacedCustomObject({
+      group: "snapshot.storage.k8s.io",
+      version: "v1",
+      namespace: namespace,
+      plural: "volumesnapshots",
+    });
 
-    const snapshots = response.body.items;
+    const snapshots = response.items;
     if (!snapshots || snapshots.length === 0) {
       return null;
     }
@@ -860,7 +601,10 @@ async function createPVCFromSnapshot(
     }
   };
 
-  return (await k8sApi.createNamespacedPersistentVolumeClaim(namespace, pvcManifest)).body;
+  return await k8sApi.createNamespacedPersistentVolumeClaim({
+    namespace: namespace,
+    body: pvcManifest
+  });
 }
 
 async function createPersistentVolumeClaim(
@@ -887,7 +631,10 @@ async function createPersistentVolumeClaim(
     }
   };
 
-  return (await k8sApi.createNamespacedPersistentVolumeClaim(namespace, pvc)).body;
+  return await k8sApi.createNamespacedPersistentVolumeClaim({
+    namespace: namespace,
+    body: pvc
+  });
 }
 
 async function getProject(projectId: string): Promise<Project | null> {
