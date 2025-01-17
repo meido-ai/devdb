@@ -4,10 +4,10 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/api"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 6
     versioning-strategy: increase
 
   - package-ecosystem: "github-actions"

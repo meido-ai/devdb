@@ -84,50 +84,71 @@ jobs:
         severity: 'CRITICAL,HIGH'
 
     - name: Create Security Issues
-      if: always()
-      uses: actions/github-script@v7.0.1
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const fs = require('fs');
-          const trivyResults = JSON.parse(fs.readFileSync('trivy-results.json', 'utf8'));
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "Starting security issue creation process..."
+        
+        # First, get existing Dependabot alerts
+        echo "Fetching existing Dependabot alerts..."
+        ALERTS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/security/alerts")
+        
+        ALERT_COUNT=$(echo "$ALERTS" | jq length)
+        echo "Found $ALERT_COUNT existing Dependabot alerts"
+        
+        # Function to check if vulnerability already exists in Dependabot alerts
+        check_existing_alert() {
+          local package="$1"
+          local version="$2"
+          echo "Checking for existing alert: $package@$version"
+          echo "$ALERTS" | jq -e --arg pkg "$package" --arg ver "$version" \
+            '.[] | select(.dependency.package.name == $pkg and .dependency.manifest_path | contains($ver))' > /dev/null
+        }
+        
+        echo "Processing Trivy scan results..."
+        VULN_COUNT=$(jq '.Results[].Vulnerabilities | length // 0' trivy-results.json | jq -s 'add')
+        echo "Found $VULN_COUNT vulnerabilities in Trivy results"
+        
+        # Process Trivy results
+        CREATED_ISSUES=0
+        SKIPPED_ISSUES=0
+        
+        jq -c '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[]' trivy-results.json | while read -r vuln; do
+          PKG_NAME=$(echo "$vuln" | jq -r '.PkgName')
+          VERSION=$(echo "$vuln" | jq -r '.InstalledVersion')
+          SEVERITY=$(echo "$vuln" | jq -r '.Severity')
           
-          for (const result of trivyResults.Results) {
-            if (!result.Vulnerabilities) continue;
+          echo "Processing vulnerability: $PKG_NAME@$VERSION ($SEVERITY)"
+          
+          # Only create issue if no Dependabot alert exists
+          if ! check_existing_alert "$PKG_NAME" "$VERSION"; then
+            echo "Creating new issue for $PKG_NAME@$VERSION..."
+            TITLE="Security: ${PKG_NAME} ${VERSION} has ${SEVERITY} vulnerability"
+            BODY=$(echo "$vuln" | jq -r '"**Package:** \(.PkgName)\n**Current Version:** \(.InstalledVersion)\n**Fixed Version:** \(.FixedVersion // \"Not available\")\n**Severity:** \(.Severity)\n**Description:** \(.Description)\n\n**References:**\n\(.References | map(. | \"* \" + .) | join(\"\n\"))"')
             
-            for (const vuln of result.Vulnerabilities) {
-              const title = `Security: ${vuln.PkgName} ${vuln.InstalledVersion} has ${vuln.Severity} vulnerability`;
-              
-              const issues = await github.rest.issues.listForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                labels: ['security'],
-                creator: 'github-actions[bot]'
-              });
-              
-              const existingIssue = issues.data.find(issue => issue.title === title);
-              if (existingIssue) continue;
-              
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: title,
-                body: |
-                  **Package:** ${vuln.PkgName}
-                  **Current Version:** ${vuln.InstalledVersion}
-                  **Fixed Version:** ${vuln.FixedVersion || 'Not available'}
-                  **Severity:** ${vuln.Severity}
-                  **Description:** ${vuln.Description}
-
-                  **References:**
-                  ${vuln.References ? vuln.References.map(ref => `* ${ref}`).join('\n') : 'None'}
-
-                  This issue was automatically created by the Trivy security scanner.
-                labels: ['security', vuln.Severity.toLowerCase()]
-              });
-            }
-          }
+            gh issue create \
+              --title "$TITLE" \
+              --body "$BODY" \
+              --label security \
+              --label "${SEVERITY,,}"
+            
+            CREATED_ISSUES=$((CREATED_ISSUES + 1))
+            echo "Created issue for $PKG_NAME"
+          else
+            SKIPPED_ISSUES=$((SKIPPED_ISSUES + 1))
+            echo "Skipping $PKG_NAME - Dependabot alert already exists"
+          fi
+        done
+        
+        echo "Security issue creation complete!"
+        echo "Summary:"
+        echo "- Total vulnerabilities found: $VULN_COUNT"
+        echo "- Existing Dependabot alerts: $ALERT_COUNT"
+        echo "- New issues created: $CREATED_ISSUES"
+        echo "- Skipped (existing alerts): $SKIPPED_ISSUES"
 
   create-release:
     runs-on: ubuntu-latest
