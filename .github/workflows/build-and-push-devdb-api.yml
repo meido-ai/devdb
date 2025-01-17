@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - api/**
+      - '.github/workflows/build-and-push-devdb-api.yml'
   workflow_dispatch:
 
 jobs:
