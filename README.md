@@ -1,90 +1,25 @@
-# DevDB - Development Database Manager
+<div align="center">
 
-DevDB is a service that makes it easy to spin up development databases for your team. It allows you to create and manage databases from the command line. Perfect for development teams that need quick access to database instances.
+<h2>DevDB - On-demand, isolated databases for development and testing</h2>
 
-## ⚙️ Prerequisites
+[![License](https://img.shields.io/badge/License-Apache%202.0-0530AD.svg)](https://opensource.org/licenses/Apache-2.0)
+![Platform Support](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-E5DDD4)
+[![API Tests](https://github.com/meido-ai/devdb/actions/workflows/api.yml/badge.svg)](https://github.com/meido-ai/devdb/actions/workflows/api.yml)
+[![CLI Tests](https://github.com/meido-ai/devdb/actions/workflows/cli.yml/badge.svg)](https://github.com/meido-ai/devdb/actions/workflows/cli.yml)
+[![CLI Version](https://img.shields.io/github/v/release/meido-ai/devdb?color=4D148C&label=cli&logo=github)](https://github.com/meido-ai/devdb/releases/latest)
 
-Before installing DevDB, ensure you have the following:
+[Installation](#-getting-started) |
+[Documentation](#-documentation) |
+[CLI Reference](docs/cli.md)
 
-### Required Tools
-- Kubernetes cluster (1.29+)
-- Helm 3.0+
-- `kubectl` CLI configured with cluster access
-- AWS CLI configured with appropriate credentials
+</div>
 
-### Kubernetes Requirements
-1. **EBS CSI Driver**:
-   ```bash
-   # Install EBS CSI Driver
-   helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver
-   helm repo update
-   helm upgrade --install aws-ebs-csi-driver \
-     --namespace kube-system \
-     aws-ebs-csi-driver/aws-ebs-csi-driver
-   ```
+DevDB is a Kubernetes-native database management tool for developers and testers. It allows you to spin up isolated databases in seconds, making it perfect for development and testing environments.
 
-2. **AWS Load Balancer Controller**:
-   ```bash
-   # Install AWS Load Balancer Controller
-   helm repo add eks https://aws.github.io/eks-charts
-   helm repo update
-   helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-     --namespace kube-system \
-     --set clusterName=your-cluster-name \
-     --set serviceAccount.create=true \
-     --set serviceAccount.name=aws-load-balancer-controller
-   ```
-
-### AWS Requirements
-1. **IAM Role** with the following permissions:
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": [
-           "s3:PutObject",
-           "s3:GetObject",
-           "s3:ListBucket"
-         ],
-         "Resource": [
-           "arn:aws:s3:::your-backup-bucket",
-           "arn:aws:s3:::your-backup-bucket/*"
-         ]
-       },
-       {
-         "Effect": "Allow",
-         "Action": [
-           "ec2:CreateVolume",
-           "ec2:DeleteVolume",
-           "ec2:CreateSnapshot",
-           "ec2:DeleteSnapshot",
-           "ec2:DescribeVolumes",
-           "ec2:DescribeSnapshots",
-           "elasticloadbalancing:*",
-           "ec2:DescribeInstances",
-           "ec2:DescribeSubnets",
-           "ec2:DescribeSecurityGroups",
-           "ec2:DescribeVpcs"
-         ],
-         "Resource": "*"
-       }
-     ]
-   }
-   ```
-
-2. **S3 Bucket** for storing database backups:
-   - Create a bucket for storing backups
-   - Enable versioning (recommended)
-   - Configure lifecycle rules for backup retention (optional)
-
-3. **VPC Configuration**:
-   - Ensure nodes are in the correct subnets
-   - Configure security groups to allow database traffic
-   - Set up VPC endpoints for S3 and EBS if using private subnets
-
-Note: The Helm chart will automatically set up all necessary Kubernetes resources including service accounts and RBAC permissions.
+- 🚀 **Quick Setup** - Spin up databases in seconds
+- 🛠️ **Team-Friendly** - Perfect for development and testing environments
+- ⚡ **Fast & Efficient** - Optimized for development workflows
+- 🎯 **Kubernetes Native** - Runs on your existing K8s cluster
 
 ## 🚀 Getting Started
 
@@ -94,280 +29,65 @@ Note: The Helm chart will automatically set up all necessary Kubernetes resource
 helm repo add devdb https://meido-ai.github.io/devdb
 helm repo update
 
-# Install DevDB into your cluster
+# Install DevDB
 helm install devdb devdb/devdb \
   --create-namespace \
-  --namespace devdb \
-  --set aws.region=us-west-2 \
-  --set aws.ebsEnabled=true
+  --namespace devdb
 ```
+
+> [!NOTE]
+> For detailed AWS deployment requirements and setup instructions, see our [Deployment Guide](docs/deployment.md).
 
 2. **Install the CLI**
 ```bash
-# Download the latest release from GitHub
-# For Windows:
-curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb-windows-amd64.exe
-mv devdb-windows-amd64.exe devdb.exe
-# Add to your PATH
+# Download the latest release for your platform
+# For Windows (64-bit):
+curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Windows_x86_64.zip
+unzip devdb_Windows_x86_64.zip
+move devdb.exe %USERPROFILE%\bin\devdb.exe
+
+# For Linux (64-bit):
+curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Linux_x86_64.tar.gz
+tar xzf devdb_Linux_x86_64.tar.gz
+sudo mv devdb /usr/local/bin/
+
+# For macOS (64-bit Intel):
+curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Darwin_x86_64.tar.gz
+tar xzf devdb_Darwin_x86_64.tar.gz
+sudo mv devdb /usr/local/bin/
+
+# For macOS (Apple Silicon):
+curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Darwin_arm64.tar.gz
+tar xzf devdb_Darwin_arm64.tar.gz
+sudo mv devdb /usr/local/bin/
 ```
 
-3. **Configure the CLI**
+3. **Configure and Use**
 ```bash
-# Get the API address
+# Configure the CLI
 export DEVDB_API=$(kubectl get svc -n devdb devdb-api -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-
-# Configure the CLI with the API address
 devdb config set-server http://$DEVDB_API
-```
 
-4. **Create a Project**
-```bash
-# Create a new project with a backup location
-devdb project create \
-  --name my-project \
-  --owner myteam \
-  --backup-location s3://my-bucket/backups/latest.dump
-```
+# Create a project
+devdb project create --name my-project
 
-5. **Create a Database**
-```bash
-# Create a new database instance for your project
-devdb database create \
-  --project my-project \
-  --name dev-db
-```
-
-6. **Connect to Your Database**
-```bash
-# Get the connection details for your database
-devdb database show --project my-project --name dev-db
-```
-
-That's it! Your database is now ready to use with your existing backup.
-
-## 🔧 Advanced Setup
-
-For advanced configuration options, you can customize the Helm installation:
-
-```bash
-helm install devdb devdb/devdb \
-  --create-namespace \
-  --namespace devdb \
-  --set aws.region=us-west-2 \
-  --set aws.ebsEnabled=true \
-  --set api.logLevel=debug
-```
-
-### Available Configuration Options
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `aws.region` | AWS Region for S3 and EBS | `us-west-2` |
-| `aws.ebsEnabled` | Enable EBS volume support | `true` |
-| `api.logLevel` | API logging level | `info` |
-
-### CLI Configuration
-
-The CLI can be configured with various options:
-
-```bash
-# Set the API server address
-devdb config set-server http://your-api-address
-
-# View current configuration
-devdb config view
-
-# Set default project
-devdb config set-default-project my-project
-```
-
-## 📖 Common Operations
-
-### Project Management
-```bash
-# List projects
-devdb project list
-
-# Create a new project
-devdb project create --name my-project --owner myteam
-
-# Delete a project
-devdb project delete my-project
-```
-
-### Database Management
-```bash
-# List databases in a project
-devdb database list --project my-project
-
-# Create a new database
+# Create a database
 devdb database create --project my-project --name dev-db
 
-# Delete a database
-devdb database delete --project my-project --name dev-db
-
-# Get database connection details
+# Get connection details
 devdb database show --project my-project --name dev-db
 ```
 
-## 👩‍💻 Developer Guide
 
-### API and Client Generation
+## 📚 Documentation
 
-The project uses an OpenAPI specification (`api/openapi/openapi.yaml`) as the source of truth for the API. When making changes to the API specification, you must regenerate both the TypeScript types and Go client code:
+- [Deployment Guide](docs/deployment.md) - Detailed deployment instructions
+- [CLI Reference](docs/cli.md) - CLI command reference
 
-1. **Install Required Tools**
-   ```bash
-   # Install oapi-codegen for Go client generation
-   go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-   ```
+## 🤝 Contributing
 
-2. **Generate TypeScript Types**
-   ```bash
-   # In the api directory
-   cd api
-   npm run generate:types
-   ```
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-3. **Generate Go Client**
-   ```bash
-   # In the cli directory
-   cd cli
-   make generate
-   ```
+## 📄 License
 
-Always run both generation commands after modifying the OpenAPI specification to ensure consistency across the codebase.
-
-### Development Setup
-
-## 🚀 Advanced Configuration
-
-### AWS EKS Optimizations
-
-DevDB can be optimized for AWS EKS to improve performance and enable advanced features like volume snapshots. This configuration is optional but recommended for production environments.
-
-#### EBS CSI Driver Installation
-
-1. Install the EBS CSI Driver:
-```bash
-helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver
-helm install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
-  --namespace kube-system \
-  --set enableVolumeSnapshot=true \
-  --set enableVolumeResizing=true \
-  --set enableVolumeScheduling=true
-```
-
-2. Install Snapshot Controller and CRDs:
-```bash
-# Install Snapshot CRDs
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
-
-# Install Snapshot Controller
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml
-kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/master/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml
-```
-
-#### IAM Configuration
-
-The EBS CSI Driver requires specific IAM permissions. Create an IAM role with the following policy:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:CreateSnapshot",
-        "ec2:DeleteSnapshot",
-        "ec2:GetSnapshotState",
-        "ec2:DescribeSnapshots",
-        "ec2:ModifyVolume",
-        "ec2:DescribeVolumes",
-        "ec2:CreateVolume",
-        "ec2:DeleteVolume",
-        "ec2:DescribeVolumesModifications"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "kms:CreateGrant",
-        "kms:ListGrants",
-        "kms:RevokeGrant",
-        "kms:Encrypt",
-        "kms:Decrypt",
-        "kms:ReEncrypt*",
-        "kms:GenerateDataKey*",
-        "kms:DescribeKey"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-#### Storage Configuration
-
-DevDB includes optimized storage classes for AWS EBS:
-
-1. **StorageClass** (for persistent volumes):
-   - Uses GP3 volume type for better performance
-   - Encryption enabled by default
-   - 3000 IOPS for optimal database performance
-   - WaitForFirstConsumer volume binding mode
-   - Volume expansion enabled
-
-2. **VolumeSnapshotClass** (for volume snapshots):
-   - Fast snapshot creation and restoration
-   - Encryption enabled
-   - Automatic cleanup of old snapshots
-
-These configurations are automatically applied when installing DevDB with the following Helm values:
-
-```bash
-helm install devdb devdb/devdb \
-  --create-namespace \
-  --namespace devdb \
-  --set aws.ebs.enabled=true \
-  --set aws.ebs.volumeType=gp3 \
-  --set aws.ebs.iops=3000 \
-  --set aws.ebs.encrypted=true
-```
-### AWS IAM Permissions
-
-The following IAM permissions are required:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "rds-db:connect",
-                "rds:GenerateAuthenticationToken"
-            ],
-            "Resource": [
-                "arn:aws:rds-db:region:account:dbuser:*/backup_user"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:PutObject",
-                "s3:GetObject",
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::devdb-backups",
-                "arn:aws:s3:::devdb-backups/*"
-            ]
-        }
-    ]
-}
-```
+DevDB is licensed under the [Apache License 2.0](LICENSE).
