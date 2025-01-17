@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'api/**'
+      - 'api/openapi/**'
       - '.github/workflows/api.yml'
 
 jobs:
