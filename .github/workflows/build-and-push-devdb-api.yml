@@ -84,7 +84,7 @@ jobs:
         severity: 'CRITICAL,HIGH'
 
     - name: Create Security Issues
-      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      continue-on-error: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -120,17 +120,21 @@ jobs:
           PKG_NAME=$(echo "$vuln" | jq -r '.PkgName')
           VERSION=$(echo "$vuln" | jq -r '.InstalledVersion')
           SEVERITY=$(echo "$vuln" | jq -r '.Severity')
+          FIXED_VERSION=$(echo "$vuln" | jq -r '.FixedVersion // "Not available"')
+          DESCRIPTION=$(echo "$vuln" | jq -r '.Description')
+          REFERENCES=$(echo "$vuln" | jq -r '.References | map("* " + .) | join("\n")')
           
           echo "Processing vulnerability: $PKG_NAME@$VERSION ($SEVERITY)"
           
           # Only create issue if no Dependabot alert exists
           if ! check_existing_alert "$PKG_NAME" "$VERSION"; then
             echo "Creating new issue for $PKG_NAME@$VERSION..."
-            TITLE="Security: ${PKG_NAME} ${VERSION} has ${SEVERITY} vulnerability"
-            BODY=$(echo "$vuln" | jq -r '"**Package:** \(.PkgName)\n**Current Version:** \(.InstalledVersion)\n**Fixed Version:** \(.FixedVersion // \"Not available\")\n**Severity:** \(.Severity)\n**Description:** \(.Description)\n\n**References:**\n\(.References | map(. | \"* \" + .) | join(\"\n\"))"')
+            
+            # Create the body with proper escaping
+            BODY=$(echo -e "**Package:** ${PKG_NAME}\n\n**Current Version:** ${VERSION}\n\n**Fixed Version:** ${FIXED_VERSION}\n\n**Severity:** ${SEVERITY}\n\n**Description:**\n${DESCRIPTION}\n\n**References:**\n${REFERENCES}")
             
             gh issue create \
-              --title "$TITLE" \
+              --title "Security: ${PKG_NAME} ${VERSION} has ${SEVERITY} vulnerability" \
               --body "$BODY" \
               --label security \
               --label "${SEVERITY,,}"
