@@ -39,15 +39,20 @@ export interface paths {
       };
     };
   };
-  "/projects/{name}": {
+  "/projects/{projectId}": {
     /** Delete a project */
-    delete: operations["deleteProjectsName"];
+    delete: operations["deleteProject"];
   };
-  "/databases": {
-    /** List databases */
+  "/projects/{projectId}/databases": {
+    /** List databases in a project */
     get: {
+      parameters: {
+        path: {
+          projectId: string;
+        };
+      };
       responses: {
-        /** @description List of databases */
+        /** @description List of databases in the project */
         200: {
           content: {
             "application/json": components["schemas"]["Database"][];
@@ -55,8 +60,13 @@ export interface paths {
         };
       };
     };
-    /** Create a new database */
+    /** Create a new database for a project */
     post: {
+      parameters: {
+        path: {
+          projectId: string;
+        };
+      };
       requestBody: {
         content: {
           "application/json": components["schemas"]["CreateDatabaseRequest"];
@@ -72,11 +82,33 @@ export interface paths {
       };
     };
   };
-  "/databases/{name}": {
-    /** Delete a database */
+  "/projects/{projectId}/databases/{name}": {
+    /** Get details of a database */
+    get: {
+      parameters: {
+        path: {
+          projectId: string;
+          name: string;
+        };
+      };
+      responses: {
+        /** @description Database details */
+        200: {
+          content: {
+            "application/json": components["schemas"]["Database"];
+          };
+        };
+        /** @description Database not found */
+        404: {
+          content: never;
+        };
+      };
+    };
+    /** Delete a database from a project */
     delete: {
       parameters: {
         path: {
+          projectId: string;
           name: string;
         };
       };
@@ -99,7 +131,7 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /** @enum {string} */
-    DatabaseType: "postgres" | "mysql";
+    DatabaseType: "postgres";
     DatabaseCredentials: {
       username: string;
       password?: string;
@@ -125,30 +157,20 @@ export interface components {
       database?: string;
     };
     CreateDatabaseRequest: {
+      /** @description Name of the database instance */
       name: string;
-      dbType: components["schemas"]["DatabaseType"];
-      dbVersion: string;
-      credentials: components["schemas"]["DatabaseCredentials"];
     };
     CreateProjectRequest: {
       /** @description Owner of the project */
       owner: string;
       /** @description Name of the project */
       name: string;
-      /** @description Type of database (postgres or mysql) */
+      /** @description Type of database (only postgres is supported for now) */
       dbType: components["schemas"]["DatabaseType"];
       /** @description Version of the database (e.g., '15.3' for PostgreSQL) */
       dbVersion: string;
-      /** @description S3 URL where the database backup (pg_dump output) is stored. Required before creating first database container. */
+      /** @description S3 URL of the backup file (e.g., s3://bucket/path/to/backup.dump) */
       backupLocation?: string;
-    };
-    DefaultDatabaseCredentials: {
-      /** @description Default username for database access */
-      username: string;
-      /** @description Default password for database access */
-      password: string;
-      /** @description Default database name */
-      database: string;
     };
     Project: {
       id: string;
@@ -160,6 +182,14 @@ export interface components {
       backupLocation: string;
       databases?: components["schemas"]["Database"][];
       defaultCredentials: components["schemas"]["DefaultDatabaseCredentials"];
+    };
+    DefaultDatabaseCredentials: {
+      /** @description Default username for database access */
+      username: string;
+      /** @description Default password for database access */
+      password: string;
+      /** @description Default database name */
+      database: string;
     };
   };
   responses: never;
@@ -176,10 +206,10 @@ export type external = Record<string, never>;
 export interface operations {
 
   /** Delete a project */
-  deleteProjectsName: {
+  deleteProject: {
     parameters: {
       path: {
-        name: string;
+        projectId: string;
       };
     };
     responses: {

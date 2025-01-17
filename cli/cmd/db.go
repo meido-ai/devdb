@@ -15,62 +15,47 @@ No Kubernetes knowledge required - DevDB handles all the infrastructure for you.
 }
 
 var (
-    dbType    string
-    dbVersion string
-    username  string
-    password  string
-    database  string
+    project string // Project flag for database commands
 )
 
 var dbCreateCmd = &cobra.Command{
     Use:   "create [name]",
     Short: "Create a new database",
-    Long: `Create a new database instance.
-Specify the database type, version, and credentials.`,
+    Long: `Create a new database instance within a project.
+The database will inherit its configuration from the project settings.`,
     Args: cobra.ExactArgs(1),
     RunE: func(cmd *cobra.Command, args []string) error {
-        // We're past flag validation, silence usage for runtime errors
-        defer func() { cmd.SilenceUsage = true }()
-        
         name := args[0]
         ctx := context.Background()
         
         client, err := api.NewClientWithResponses(apiURL)
         if err != nil {
-            return fmt.Errorf("error creating client: %v", err)
+            return fmt.Errorf("creating client: %v", err)
         }
 
         // Create database request
         req := api.CreateDatabaseRequest{
-            Name:      name,
-            DbType:    api.DatabaseType(dbType),
-            DbVersion: dbVersion,
-            Credentials: api.DatabaseCredentials{
-                Username: username,
-                Password: &password,
-                Database: database,
-            },
+            Name: name,
         }
 
-        resp, err := client.PostDatabasesWithResponse(ctx, req)
+        resp, err := client.PostProjectsProjectIdDatabasesWithResponse(ctx, project, req)
         if err != nil {
-            return fmt.Errorf("error creating database: %v", err)
+            return fmt.Errorf("creating database: %v", err)
         }
 
         if resp.StatusCode() != 201 {
             return fmt.Errorf("API returned status code %d", resp.StatusCode())
         }
 
-        result := resp.JSON201
-        cmd.Printf("Database created successfully\n")
-        cmd.Printf("Details:\n")
-        cmd.Printf("  Name: %s\n", result.Name)
-        cmd.Printf("  Status: %s\n", result.Status)
-        if result.Host != nil && *result.Host != "" {
-            cmd.Printf("  Host: %s\n", *result.Host)
+        db := resp.JSON201
+        cmd.Printf("Database created successfully\nDetails:\n")
+        cmd.Printf("  Name: %s\n", db.Name)
+        cmd.Printf("  Status: %s\n", db.Status)
+        if db.Host != nil {
+            cmd.Printf("  Host: %s\n", *db.Host)
         }
-        if result.Port != nil && *result.Port != 0 {
-            cmd.Printf("  Port: %d\n", *result.Port)
+        if db.Port != nil {
+            cmd.Printf("  Port: %d\n", *db.Port)
         }
         return nil
     },
@@ -78,22 +63,18 @@ Specify the database type, version, and credentials.`,
 
 var dbListCmd = &cobra.Command{
     Use:   "list",
-    Short: "List databases",
-    Long:  `Display a list of all databases and their current status.`,
+    Short: "List databases in a project",
     RunE: func(cmd *cobra.Command, args []string) error {
-        // Silence usage for runtime errors
-        defer func() { cmd.SilenceUsage = true }()
-
         ctx := context.Background()
         
         client, err := api.NewClientWithResponses(apiURL)
         if err != nil {
-            return fmt.Errorf("error creating client: %v", err)
+            return fmt.Errorf("creating client: %v", err)
         }
 
-        resp, err := client.GetDatabasesWithResponse(ctx)
+        resp, err := client.GetProjectsProjectIdDatabasesWithResponse(ctx, project)
         if err != nil {
-            return fmt.Errorf("error listing databases: %v", err)
+            return fmt.Errorf("listing databases: %v", err)
         }
 
         if resp.StatusCode() != 200 {
@@ -109,21 +90,48 @@ var dbListCmd = &cobra.Command{
         cmd.Println("Databases:")
         for _, db := range *databases {
             cmd.Printf("- %s (Status: %s)\n", db.Name, db.Status)
-            if db.Project != nil {
-                cmd.Printf("  Project: %s\n", *db.Project)
-            }
-            if db.Host != nil && *db.Host != "" {
+            if db.Host != nil {
                 cmd.Printf("  Host: %s\n", *db.Host)
             }
-            if db.Port != nil && *db.Port != 0 {
+            if db.Port != nil {
                 cmd.Printf("  Port: %d\n", *db.Port)
             }
-            if db.Username != nil && *db.Username != "" {
-                cmd.Printf("  Username: %s\n", *db.Username)
-            }
-            if db.Database != nil && *db.Database != "" {
-                cmd.Printf("  Database: %s\n", *db.Database)
-            }
+        }
+        return nil
+    },
+}
+
+var dbShowCmd = &cobra.Command{
+    Use:   "show [name]",
+    Short: "Show database details",
+    Args:  cobra.ExactArgs(1),
+    RunE: func(cmd *cobra.Command, args []string) error {
+        name := args[0]
+        ctx := context.Background()
+        
+        client, err := api.NewClientWithResponses(apiURL)
+        if err != nil {
+            return fmt.Errorf("creating client: %v", err)
+        }
+
+        resp, err := client.GetProjectsProjectIdDatabasesNameWithResponse(ctx, project, name)
+        if err != nil {
+            return fmt.Errorf("getting database: %v", err)
+        }
+
+        if resp.StatusCode() != 200 {
+            return fmt.Errorf("API returned status code %d", resp.StatusCode())
+        }
+
+        db := resp.JSON200
+        cmd.Printf("Database Details:\n")
+        cmd.Printf("  Name: %s\n", db.Name)
+        cmd.Printf("  Status: %s\n", db.Status)
+        if db.Host != nil {
+            cmd.Printf("  Host: %s\n", *db.Host)
+        }
+        if db.Port != nil {
+            cmd.Printf("  Port: %d\n", *db.Port)
         }
         return nil
     },
@@ -132,23 +140,19 @@ var dbListCmd = &cobra.Command{
 var dbDeleteCmd = &cobra.Command{
     Use:   "delete [name]",
     Short: "Delete a database",
-    Long:  `Delete a database and all its resources.`,
     Args:  cobra.ExactArgs(1),
     RunE: func(cmd *cobra.Command, args []string) error {
-        // Silence usage for runtime errors
-        defer func() { cmd.SilenceUsage = true }()
-
         name := args[0]
         ctx := context.Background()
         
         client, err := api.NewClientWithResponses(apiURL)
         if err != nil {
-            return fmt.Errorf("error creating client: %v", err)
+            return fmt.Errorf("creating client: %v", err)
         }
 
-        resp, err := client.DeleteDatabasesNameWithResponse(ctx, name)
+        resp, err := client.DeleteProjectsProjectIdDatabasesNameWithResponse(ctx, project, name)
         if err != nil {
-            return fmt.Errorf("error deleting database: %v", err)
+            return fmt.Errorf("deleting database: %v", err)
         }
 
         if resp.StatusCode() != 200 {
@@ -161,21 +165,13 @@ var dbDeleteCmd = &cobra.Command{
 }
 
 func init() {
-    // Add database create flags
-    dbCreateCmd.Flags().StringVarP(&dbType, "type", "t", "", "Database type (postgres or mysql)")
-    dbCreateCmd.Flags().StringVarP(&dbVersion, "version", "v", "", "Database version")
-    dbCreateCmd.Flags().StringVarP(&username, "username", "u", "", "Database username")
-    dbCreateCmd.Flags().StringVarP(&password, "password", "p", "", "Database password")
-    dbCreateCmd.Flags().StringVarP(&database, "database", "d", "", "Database name")
-
-    // Mark required flags
-    dbCreateCmd.MarkFlagRequired("type")
-    dbCreateCmd.MarkFlagRequired("version")
-    dbCreateCmd.MarkFlagRequired("username")
-    dbCreateCmd.MarkFlagRequired("database")
-
-    // Add commands to db command
+    rootCmd.AddCommand(dbCmd)
     dbCmd.AddCommand(dbCreateCmd)
     dbCmd.AddCommand(dbListCmd)
+    dbCmd.AddCommand(dbShowCmd)
     dbCmd.AddCommand(dbDeleteCmd)
+
+    // Add project flag to all database commands
+    dbCmd.PersistentFlags().StringVar(&project, "project", "", "Project ID (required)")
+    dbCmd.MarkPersistentFlagRequired("project")
 }

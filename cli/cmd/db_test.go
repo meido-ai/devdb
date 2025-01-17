@@ -10,7 +10,7 @@ func TestDatabaseCommands(t *testing.T) {
     // Create a test server that returns mock responses
     ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         switch r.Method + " " + r.URL.Path {
-        case "POST /databases":
+        case "POST /projects/testproject/databases":
             w.Header().Set("Content-Type", "application/json")
             w.WriteHeader(http.StatusCreated)
             w.Write([]byte(`{
@@ -18,28 +18,42 @@ func TestDatabaseCommands(t *testing.T) {
                 "status": "running",
                 "host": "localhost",
                 "port": 5432,
-                "service": "postgres-service"
+                "username": null,
+                "database": null
             }`))
-        case "GET /databases":
+        case "GET /projects/testproject/databases":
             w.Header().Set("Content-Type", "application/json")
             w.WriteHeader(http.StatusOK)
             w.Write([]byte(`[
                 {
                     "name": "testdb1",
                     "status": "running",
-                    "project": "testproject",
                     "host": "localhost",
                     "port": 5432,
-                    "username": "postgres",
-                    "database": "testdb1"
+                    "username": null,
+                    "database": null
                 },
                 {
                     "name": "testdb2",
                     "status": "stopped",
-                    "project": "testproject"
+                    "host": null,
+                    "port": null,
+                    "username": null,
+                    "database": null
                 }
             ]`))
-        case "DELETE /databases/testdb":
+        case "GET /projects/testproject/databases/testdb":
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusOK)
+            w.Write([]byte(`{
+                "name": "testdb",
+                "status": "running",
+                "host": "localhost",
+                "port": 5432,
+                "username": null,
+                "database": null
+            }`))
+        case "DELETE /projects/testproject/databases/testdb":
             w.WriteHeader(http.StatusOK)
             w.Write([]byte(`{"message": "Database deleted successfully"}`))
         default:
@@ -76,22 +90,29 @@ Details:
         {
             name: "list databases",
             cmd:  dbListCmd,
-            args: []string{},
+            args: []string{"--project", "testproject"},
             wantOutput: `Databases:
 - testdb1 (Status: running)
-  Project: testproject
   Host: localhost
   Port: 5432
-  Username: postgres
-  Database: testdb1
 - testdb2 (Status: stopped)
-  Project: testproject
+`,
+        },
+        {
+            name: "show database",
+            cmd:  dbShowCmd,
+            args: []string{"testdb", "--project", "testproject"},
+            wantOutput: `Database Details:
+  Name: testdb
+  Status: running
+  Host: localhost
+  Port: 5432
 `,
         },
         {
             name: "delete database",
             cmd:  dbDeleteCmd,
-            args: []string{"testdb"},
+            args: []string{"testdb", "--project", "testproject"},
             wantOutput: "Database testdb deleted successfully\n",
         },
     }
@@ -104,36 +125,34 @@ Details:
 }
 
 func TestDatabaseClientErrors(t *testing.T) {
-    // Create a test server that returns errors
     ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.WriteHeader(http.StatusInternalServerError)
+        http.Error(w, "internal server error", http.StatusInternalServerError)
     }))
     defer ts.Close()
 
-    // Store the original apiURL and restore it after tests
     originalURL := apiURL
     defer func() { apiURL = originalURL }()
     apiURL = ts.URL
 
     tests := []cmdTestCase{
         {
-            name: "create database server error",
-            cmd:  dbCreateCmd,
-            args: []string{"testdb", "--project", "testproject"},
+            name:    "create database server error",
+            cmd:    dbCreateCmd,
+            args:   []string{"testdb", "--project", "testproject"},
             wantErr: true,
             wantOutput: "Error: API returned status code 500\n",
         },
         {
-            name: "list databases server error",
-            cmd:  dbListCmd,
-            args: []string{},
+            name:    "list databases server error",
+            cmd:    dbListCmd,
+            args:   []string{"--project", "testproject"},
             wantErr: true,
             wantOutput: "Error: API returned status code 500\n",
         },
         {
-            name: "delete database server error",
-            cmd:  dbDeleteCmd,
-            args: []string{"testdb"},
+            name:    "delete database server error",
+            cmd:    dbDeleteCmd,
+            args:   []string{"testdb", "--project", "testproject"},
             wantErr: true,
             wantOutput: "Error: API returned status code 500\n",
         },

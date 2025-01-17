@@ -26,21 +26,18 @@ const (
 
 // Defines values for DatabaseType.
 const (
-	Mysql    DatabaseType = "mysql"
 	Postgres DatabaseType = "postgres"
 )
 
 // CreateDatabaseRequest defines model for CreateDatabaseRequest.
 type CreateDatabaseRequest struct {
-	Credentials DatabaseCredentials `json:"credentials"`
-	DbType      DatabaseType        `json:"dbType"`
-	DbVersion   string              `json:"dbVersion"`
-	Name        string              `json:"name"`
+	// Name Name of the database instance
+	Name string `json:"name"`
 }
 
 // CreateProjectRequest defines model for CreateProjectRequest.
 type CreateProjectRequest struct {
-	// BackupLocation S3 URL where the database backup (pg_dump output) is stored. Required before creating first database container.
+	// BackupLocation S3 URL of the backup file (e.g., s3://bucket/path/to/backup.dump)
 	BackupLocation *string      `json:"backupLocation,omitempty"`
 	DbType         DatabaseType `json:"dbType"`
 
@@ -67,13 +64,6 @@ type Database struct {
 
 // DatabaseStatus defines model for Database.Status.
 type DatabaseStatus string
-
-// DatabaseCredentials defines model for DatabaseCredentials.
-type DatabaseCredentials struct {
-	Database string  `json:"database"`
-	Password *string `json:"password,omitempty"`
-	Username string  `json:"username"`
-}
 
 // DatabaseType defines model for DatabaseType.
 type DatabaseType string
@@ -108,11 +98,11 @@ type GetProjectsParams struct {
 	Owner *string `form:"owner,omitempty" json:"owner,omitempty"`
 }
 
-// PostDatabasesJSONRequestBody defines body for PostDatabases for application/json ContentType.
-type PostDatabasesJSONRequestBody = CreateDatabaseRequest
-
 // PostProjectsJSONRequestBody defines body for PostProjects for application/json ContentType.
 type PostProjectsJSONRequestBody = CreateProjectRequest
+
+// PostProjectsProjectIdDatabasesJSONRequestBody defines body for PostProjectsProjectIdDatabases for application/json ContentType.
+type PostProjectsProjectIdDatabasesJSONRequestBody = CreateDatabaseRequest
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -187,17 +177,6 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetDatabases request
-	GetDatabases(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostDatabasesWithBody request with any body
-	PostDatabasesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostDatabases(ctx context.Context, body PostDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteDatabasesName request
-	DeleteDatabasesName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetProjects request
 	GetProjects(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -206,56 +185,22 @@ type ClientInterface interface {
 
 	PostProjects(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeleteProjectsName request
-	DeleteProjectsName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-}
+	// DeleteProject request
+	DeleteProject(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-func (c *Client) GetDatabases(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetDatabasesRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
+	// GetProjectsProjectIdDatabases request
+	GetProjectsProjectIdDatabases(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-func (c *Client) PostDatabasesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostDatabasesRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
+	// PostProjectsProjectIdDatabasesWithBody request with any body
+	PostProjectsProjectIdDatabasesWithBody(ctx context.Context, projectId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-func (c *Client) PostDatabases(ctx context.Context, body PostDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostDatabasesRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
+	PostProjectsProjectIdDatabases(ctx context.Context, projectId string, body PostProjectsProjectIdDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-func (c *Client) DeleteDatabasesName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteDatabasesNameRequest(c.Server, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
+	// DeleteProjectsProjectIdDatabasesName request
+	DeleteProjectsProjectIdDatabasesName(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetProjectsProjectIdDatabasesName request
+	GetProjectsProjectIdDatabasesName(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetProjects(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -294,8 +239,8 @@ func (c *Client) PostProjects(ctx context.Context, body PostProjectsJSONRequestB
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteProjectsName(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteProjectsNameRequest(c.Server, name)
+func (c *Client) DeleteProject(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectRequest(c.Server, projectId)
 	if err != nil {
 		return nil, err
 	}
@@ -306,105 +251,64 @@ func (c *Client) DeleteProjectsName(ctx context.Context, name string, reqEditors
 	return c.Client.Do(req)
 }
 
-// NewGetDatabasesRequest generates requests for GetDatabases
-func NewGetDatabasesRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
+func (c *Client) GetProjectsProjectIdDatabases(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectsProjectIdDatabasesRequest(c.Server, projectId)
 	if err != nil {
 		return nil, err
 	}
-
-	operationPath := fmt.Sprintf("/databases")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
+	return c.Client.Do(req)
 }
 
-// NewPostDatabasesRequest calls the generic PostDatabases builder with application/json body
-func NewPostDatabasesRequest(server string, body PostDatabasesJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
+func (c *Client) PostProjectsProjectIdDatabasesWithBody(ctx context.Context, projectId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsProjectIdDatabasesRequestWithBody(c.Server, projectId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostDatabasesRequestWithBody(server, "application/json", bodyReader)
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
-// NewPostDatabasesRequestWithBody generates requests for PostDatabases with any type of body
-func NewPostDatabasesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
+func (c *Client) PostProjectsProjectIdDatabases(ctx context.Context, projectId string, body PostProjectsProjectIdDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostProjectsProjectIdDatabasesRequest(c.Server, projectId, body)
 	if err != nil {
 		return nil, err
 	}
-
-	operationPath := fmt.Sprintf("/databases")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
+	return c.Client.Do(req)
 }
 
-// NewDeleteDatabasesNameRequest generates requests for DeleteDatabasesName
-func NewDeleteDatabasesNameRequest(server string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+func (c *Client) DeleteProjectsProjectIdDatabasesName(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProjectsProjectIdDatabasesNameRequest(c.Server, projectId, name)
 	if err != nil {
 		return nil, err
 	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
 
-	serverURL, err := url.Parse(server)
+func (c *Client) GetProjectsProjectIdDatabasesName(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectsProjectIdDatabasesNameRequest(c.Server, projectId, name)
 	if err != nil {
 		return nil, err
 	}
-
-	operationPath := fmt.Sprintf("/databases/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
+	return c.Client.Do(req)
 }
 
 // NewGetProjectsRequest generates requests for GetProjects
@@ -496,13 +400,13 @@ func NewPostProjectsRequestWithBody(server string, contentType string, body io.R
 	return req, nil
 }
 
-// NewDeleteProjectsNameRequest generates requests for DeleteProjectsName
-func NewDeleteProjectsNameRequest(server string, name string) (*http.Request, error) {
+// NewDeleteProjectRequest generates requests for DeleteProject
+func NewDeleteProjectRequest(server string, projectId string) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
 	if err != nil {
 		return nil, err
 	}
@@ -523,6 +427,169 @@ func NewDeleteProjectsNameRequest(server string, name string) (*http.Request, er
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectsProjectIdDatabasesRequest generates requests for GetProjectsProjectIdDatabases
+func NewGetProjectsProjectIdDatabasesRequest(server string, projectId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s/databases", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPostProjectsProjectIdDatabasesRequest calls the generic PostProjectsProjectIdDatabases builder with application/json body
+func NewPostProjectsProjectIdDatabasesRequest(server string, projectId string, body PostProjectsProjectIdDatabasesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostProjectsProjectIdDatabasesRequestWithBody(server, projectId, "application/json", bodyReader)
+}
+
+// NewPostProjectsProjectIdDatabasesRequestWithBody generates requests for PostProjectsProjectIdDatabases with any type of body
+func NewPostProjectsProjectIdDatabasesRequestWithBody(server string, projectId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s/databases", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteProjectsProjectIdDatabasesNameRequest generates requests for DeleteProjectsProjectIdDatabasesName
+func NewDeleteProjectsProjectIdDatabasesNameRequest(server string, projectId string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s/databases/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectsProjectIdDatabasesNameRequest generates requests for GetProjectsProjectIdDatabasesName
+func NewGetProjectsProjectIdDatabasesNameRequest(server string, projectId string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s/databases/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -573,17 +640,6 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetDatabasesWithResponse request
-	GetDatabasesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetDatabasesResponse, error)
-
-	// PostDatabasesWithBodyWithResponse request with any body
-	PostDatabasesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDatabasesResponse, error)
-
-	PostDatabasesWithResponse(ctx context.Context, body PostDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDatabasesResponse, error)
-
-	// DeleteDatabasesNameWithResponse request
-	DeleteDatabasesNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteDatabasesNameResponse, error)
-
 	// GetProjectsWithResponse request
 	GetProjectsWithResponse(ctx context.Context, params *GetProjectsParams, reqEditors ...RequestEditorFn) (*GetProjectsResponse, error)
 
@@ -592,76 +648,22 @@ type ClientWithResponsesInterface interface {
 
 	PostProjectsWithResponse(ctx context.Context, body PostProjectsJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsResponse, error)
 
-	// DeleteProjectsNameWithResponse request
-	DeleteProjectsNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error)
-}
+	// DeleteProjectWithResponse request
+	DeleteProjectWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*DeleteProjectResponse, error)
 
-type GetDatabasesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *[]Database
-}
+	// GetProjectsProjectIdDatabasesWithResponse request
+	GetProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesResponse, error)
 
-// Status returns HTTPResponse.Status
-func (r GetDatabasesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
+	// PostProjectsProjectIdDatabasesWithBodyWithResponse request with any body
+	PostProjectsProjectIdDatabasesWithBodyWithResponse(ctx context.Context, projectId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsProjectIdDatabasesResponse, error)
 
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetDatabasesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
+	PostProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, body PostProjectsProjectIdDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsProjectIdDatabasesResponse, error)
 
-type PostDatabasesResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *Database
-}
+	// DeleteProjectsProjectIdDatabasesNameWithResponse request
+	DeleteProjectsProjectIdDatabasesNameWithResponse(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsProjectIdDatabasesNameResponse, error)
 
-// Status returns HTTPResponse.Status
-func (r PostDatabasesResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostDatabasesResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteDatabasesNameResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Message *string `json:"message,omitempty"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteDatabasesNameResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteDatabasesNameResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
+	// GetProjectsProjectIdDatabasesNameWithResponse request
+	GetProjectsProjectIdDatabasesNameWithResponse(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesNameResponse, error)
 }
 
 type GetProjectsResponse struct {
@@ -708,13 +710,13 @@ func (r PostProjectsResponse) StatusCode() int {
 	return 0
 }
 
-type DeleteProjectsNameResponse struct {
+type DeleteProjectResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteProjectsNameResponse) Status() string {
+func (r DeleteProjectResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -722,46 +724,101 @@ func (r DeleteProjectsNameResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteProjectsNameResponse) StatusCode() int {
+func (r DeleteProjectResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// GetDatabasesWithResponse request returning *GetDatabasesResponse
-func (c *ClientWithResponses) GetDatabasesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetDatabasesResponse, error) {
-	rsp, err := c.GetDatabases(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetDatabasesResponse(rsp)
+type GetProjectsProjectIdDatabasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Database
 }
 
-// PostDatabasesWithBodyWithResponse request with arbitrary body returning *PostDatabasesResponse
-func (c *ClientWithResponses) PostDatabasesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDatabasesResponse, error) {
-	rsp, err := c.PostDatabasesWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
+// Status returns HTTPResponse.Status
+func (r GetProjectsProjectIdDatabasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
 	}
-	return ParsePostDatabasesResponse(rsp)
+	return http.StatusText(0)
 }
 
-func (c *ClientWithResponses) PostDatabasesWithResponse(ctx context.Context, body PostDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDatabasesResponse, error) {
-	rsp, err := c.PostDatabases(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectsProjectIdDatabasesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
 	}
-	return ParsePostDatabasesResponse(rsp)
+	return 0
 }
 
-// DeleteDatabasesNameWithResponse request returning *DeleteDatabasesNameResponse
-func (c *ClientWithResponses) DeleteDatabasesNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteDatabasesNameResponse, error) {
-	rsp, err := c.DeleteDatabasesName(ctx, name, reqEditors...)
-	if err != nil {
-		return nil, err
+type PostProjectsProjectIdDatabasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *Database
+}
+
+// Status returns HTTPResponse.Status
+func (r PostProjectsProjectIdDatabasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
 	}
-	return ParseDeleteDatabasesNameResponse(rsp)
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostProjectsProjectIdDatabasesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteProjectsProjectIdDatabasesNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message *string `json:"message,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProjectsProjectIdDatabasesNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProjectsProjectIdDatabasesNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectsProjectIdDatabasesNameResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Database
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectsProjectIdDatabasesNameResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectsProjectIdDatabasesNameResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 // GetProjectsWithResponse request returning *GetProjectsResponse
@@ -790,93 +847,57 @@ func (c *ClientWithResponses) PostProjectsWithResponse(ctx context.Context, body
 	return ParsePostProjectsResponse(rsp)
 }
 
-// DeleteProjectsNameWithResponse request returning *DeleteProjectsNameResponse
-func (c *ClientWithResponses) DeleteProjectsNameWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsNameResponse, error) {
-	rsp, err := c.DeleteProjectsName(ctx, name, reqEditors...)
+// DeleteProjectWithResponse request returning *DeleteProjectResponse
+func (c *ClientWithResponses) DeleteProjectWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*DeleteProjectResponse, error) {
+	rsp, err := c.DeleteProject(ctx, projectId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseDeleteProjectsNameResponse(rsp)
+	return ParseDeleteProjectResponse(rsp)
 }
 
-// ParseGetDatabasesResponse parses an HTTP response from a GetDatabasesWithResponse call
-func ParseGetDatabasesResponse(rsp *http.Response) (*GetDatabasesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
+// GetProjectsProjectIdDatabasesWithResponse request returning *GetProjectsProjectIdDatabasesResponse
+func (c *ClientWithResponses) GetProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesResponse, error) {
+	rsp, err := c.GetProjectsProjectIdDatabases(ctx, projectId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-
-	response := &GetDatabasesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []Database
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
+	return ParseGetProjectsProjectIdDatabasesResponse(rsp)
 }
 
-// ParsePostDatabasesResponse parses an HTTP response from a PostDatabasesWithResponse call
-func ParsePostDatabasesResponse(rsp *http.Response) (*PostDatabasesResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
+// PostProjectsProjectIdDatabasesWithBodyWithResponse request with arbitrary body returning *PostProjectsProjectIdDatabasesResponse
+func (c *ClientWithResponses) PostProjectsProjectIdDatabasesWithBodyWithResponse(ctx context.Context, projectId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostProjectsProjectIdDatabasesResponse, error) {
+	rsp, err := c.PostProjectsProjectIdDatabasesWithBody(ctx, projectId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-
-	response := &PostDatabasesResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Database
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	}
-
-	return response, nil
+	return ParsePostProjectsProjectIdDatabasesResponse(rsp)
 }
 
-// ParseDeleteDatabasesNameResponse parses an HTTP response from a DeleteDatabasesNameWithResponse call
-func ParseDeleteDatabasesNameResponse(rsp *http.Response) (*DeleteDatabasesNameResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
+func (c *ClientWithResponses) PostProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, body PostProjectsProjectIdDatabasesJSONRequestBody, reqEditors ...RequestEditorFn) (*PostProjectsProjectIdDatabasesResponse, error) {
+	rsp, err := c.PostProjectsProjectIdDatabases(ctx, projectId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
+	return ParsePostProjectsProjectIdDatabasesResponse(rsp)
+}
 
-	response := &DeleteDatabasesNameResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
+// DeleteProjectsProjectIdDatabasesNameWithResponse request returning *DeleteProjectsProjectIdDatabasesNameResponse
+func (c *ClientWithResponses) DeleteProjectsProjectIdDatabasesNameWithResponse(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*DeleteProjectsProjectIdDatabasesNameResponse, error) {
+	rsp, err := c.DeleteProjectsProjectIdDatabasesName(ctx, projectId, name, reqEditors...)
+	if err != nil {
+		return nil, err
 	}
+	return ParseDeleteProjectsProjectIdDatabasesNameResponse(rsp)
+}
 
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Message *string `json:"message,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
+// GetProjectsProjectIdDatabasesNameWithResponse request returning *GetProjectsProjectIdDatabasesNameResponse
+func (c *ClientWithResponses) GetProjectsProjectIdDatabasesNameWithResponse(ctx context.Context, projectId string, name string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesNameResponse, error) {
+	rsp, err := c.GetProjectsProjectIdDatabasesName(ctx, projectId, name, reqEditors...)
+	if err != nil {
+		return nil, err
 	}
-
-	return response, nil
+	return ParseGetProjectsProjectIdDatabasesNameResponse(rsp)
 }
 
 // ParseGetProjectsResponse parses an HTTP response from a GetProjectsWithResponse call
@@ -931,17 +952,123 @@ func ParsePostProjectsResponse(rsp *http.Response) (*PostProjectsResponse, error
 	return response, nil
 }
 
-// ParseDeleteProjectsNameResponse parses an HTTP response from a DeleteProjectsNameWithResponse call
-func ParseDeleteProjectsNameResponse(rsp *http.Response) (*DeleteProjectsNameResponse, error) {
+// ParseDeleteProjectResponse parses an HTTP response from a DeleteProjectWithResponse call
+func ParseDeleteProjectResponse(rsp *http.Response) (*DeleteProjectResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &DeleteProjectsNameResponse{
+	response := &DeleteProjectResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectsProjectIdDatabasesResponse parses an HTTP response from a GetProjectsProjectIdDatabasesWithResponse call
+func ParseGetProjectsProjectIdDatabasesResponse(rsp *http.Response) (*GetProjectsProjectIdDatabasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectsProjectIdDatabasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostProjectsProjectIdDatabasesResponse parses an HTTP response from a PostProjectsProjectIdDatabasesWithResponse call
+func ParsePostProjectsProjectIdDatabasesResponse(rsp *http.Response) (*PostProjectsProjectIdDatabasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostProjectsProjectIdDatabasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteProjectsProjectIdDatabasesNameResponse parses an HTTP response from a DeleteProjectsProjectIdDatabasesNameWithResponse call
+func ParseDeleteProjectsProjectIdDatabasesNameResponse(rsp *http.Response) (*DeleteProjectsProjectIdDatabasesNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProjectsProjectIdDatabasesNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message *string `json:"message,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectsProjectIdDatabasesNameResponse parses an HTTP response from a GetProjectsProjectIdDatabasesNameWithResponse call
+func ParseGetProjectsProjectIdDatabasesNameResponse(rsp *http.Response) (*GetProjectsProjectIdDatabasesNameResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectsProjectIdDatabasesNameResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	}
 
 	return response, nil

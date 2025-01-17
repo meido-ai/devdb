@@ -90,8 +90,8 @@ Details:
   ID: proj-123
   Name: testproject
   Owner: testuser
-  Type: postgres
-  Version: 15.3
+  DbType: postgres
+  DbVersion: 15.3
 `,
 		},
 		{
@@ -100,8 +100,8 @@ Details:
 			args: []string{},
 			wantOutput: `Projects:
 - testproject (Owner: testuser)
-  Type: postgres
-  Version: 15.3
+  DbType: postgres
+  DbVersion: 15.3
 `,
 		},
 		{

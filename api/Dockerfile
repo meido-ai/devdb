@@ -14,9 +14,9 @@ RUN npm run build
 # Production stage
 FROM node:18-bullseye-slim
 
-# Install PostgreSQL and MySQL client tools
+# Install PostgreSQL client tools
 RUN apt-get update && \
-    apt-get install -y postgresql-client default-mysql-client && \
+    apt-get install -y postgresql-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
@@ -28,16 +28,13 @@ WORKDIR /app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY .env ./
-
-# Verify .env exists
-RUN test -f ./.env || (echo ".env file not found!" && exit 1)
 
 # Use non-root user
 USER nodejs
 
-# Set Node to production mode
-ENV NODE_ENV=production
+# Set only essential build-time environment variables
+ENV NODE_ENV=production \
+    PORT=5000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s \

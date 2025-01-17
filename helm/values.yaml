@@ -6,3 +6,26 @@ image:
   pullPolicy: Always
 
 backupLocation: "/backup"
+
+aws:
+  region: us-west-2
+  ebs:
+    # Set to true to enable EBS optimizations and volume snapshots
+    enabled: false
+    # Storage class to use for database volumes
+    storageClass: ebs-sc
+    # Snapshot class to use for volume snapshots
+    snapshotClass: ebs-snapshot-class
+    # Default volume size for database PVCs
+    volumeSize: 10Gi
+    # IOPS for GP3 volumes
+    iops: 3000
+    # Throughput for GP3 volumes (MB/s)
+    throughput: 125
+    # Enable volume encryption
+    encrypted: true
+
+s3:
+  bucket: devdb-backups
+  # Optional: specify a prefix for all backup objects
+  prefix: ""

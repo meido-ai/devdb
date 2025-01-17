@@ -8,8 +8,12 @@ permissions:
 jobs:
   generate-description:
     runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'dependencies')"
+    permissions:
+      pull-requests: write
+      contents: read
     steps:
-      - uses: meido-ai/pr-summarizer@v1.0.3
+      - uses: meido-ai/pr-summarizer@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

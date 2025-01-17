@@ -1,14 +1,16 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: devdb-api
+  name: {{ .Release.Name }}-api
   namespace: devdb
   labels:
     {{- include "common.labels" . | nindent 4 }}
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec: 
-  ingressClassName: nginx
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
   rules:
   - http:
       paths:
@@ -16,6 +18,6 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: devdb-api
+            name: {{ .Release.Name }}-api
             port:
-              number: 5000
+              number: 80
