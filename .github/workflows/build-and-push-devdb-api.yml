@@ -23,16 +23,10 @@ jobs:
       name: "Generate Version"
       uses: paulhatch/semantic-version@v5.4.0
       with:
-        # The prefix to use to identify tags
         tag_prefix: "v"
-        # A string which, if present in a git commit, indicates that a change represents a
-        # major (breaking) change, supports regular expressions wrapped with '/'
         major_pattern: "(MAJOR)"
-        # Same as above except indicating a minor change, supports regular expressions wrapped with '/'
         minor_pattern: "(MINOR)"
-        # A string to determine the format of the version output
         version_format: "${major}.${minor}.${patch}"
-        # If this is set to true, *every* commit will be treated as a new version.
         bump_each_commit: false
 
   build-container-image:
@@ -41,6 +35,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      issues: write
 
     steps:
     - name: Checkout code
@@ -76,13 +71,63 @@ jobs:
 
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
+      continue-on-error: true
+      id: scan
       with:
         image-ref: ghcr.io/${{ github.repository_owner }}/devdb-api:${{ needs.build-node-app.outputs.version_tag }}
-        format: 'table'
-        exit-code: '1'
+        format: 'json'
+        output: 'trivy-results.json'
+        exit-code: '0'
         ignore-unfixed: true
         vuln-type: 'os,library'
         severity: 'CRITICAL,HIGH'
+
+    - name: Create Security Issues
+      if: always()
+      uses: actions/github-script@v7.0.1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const trivyResults = JSON.parse(fs.readFileSync('trivy-results.json', 'utf8'));
+          
+          for (const result of trivyResults.Results) {
+            if (!result.Vulnerabilities) continue;
+            
+            for (const vuln of result.Vulnerabilities) {
+              const title = `Security: ${vuln.PkgName} ${vuln.InstalledVersion} has ${vuln.Severity} vulnerability`;
+              
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: ['security'],
+                creator: 'github-actions[bot]'
+              });
+              
+              const existingIssue = issues.data.find(issue => issue.title === title);
+              if (existingIssue) continue;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: `
+                **Package:** ${vuln.PkgName}
+                **Current Version:** ${vuln.InstalledVersion}
+                **Fixed Version:** ${vuln.FixedVersion || 'Not available'}
+                **Severity:** ${vuln.Severity}
+                **Description:** ${vuln.Description}
+                
+                **References:**
+                ${vuln.References ? vuln.References.join('\n') : 'None'}
+                
+                This issue was automatically created by the Trivy security scanner.
+                `,
+                labels: ['security', vuln.Severity.toLowerCase()]
+              });
+            }
+          }
 
   create-release:
     runs-on: ubuntu-latest
@@ -99,5 +144,5 @@ jobs:
           await github.request(`POST /repos/${{ github.repository }}/releases`, {
             tag_name: "${{ needs.build-node-app.outputs.version_tag }}",
             name: "${{ needs.build-node-app.outputs.version_tag }}",
-            generate_release_notes: false
+            generate_release_notes: true
           });
