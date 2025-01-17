@@ -96,7 +96,7 @@ jobs:
           -H "Accept: application/vnd.github.v3+json" \
           "https://api.github.com/repos/${{ github.repository }}/security/alerts")
         
-        ALERT_COUNT=$(echo "$ALERTS" | jq length)
+        ALERT_COUNT=$(echo "$ALERTS" | jq 'length')
         echo "Found $ALERT_COUNT existing Dependabot alerts"
         
         # Function to check if vulnerability already exists in Dependabot alerts
@@ -104,8 +104,8 @@ jobs:
           local package="$1"
           local version="$2"
           echo "Checking for existing alert: $package@$version"
-          echo "$ALERTS" | jq -e --arg pkg "$package" --arg ver "$version" \
-            '.[] | select(.dependency.package.name == $pkg and .dependency.manifest_path | contains($ver))' > /dev/null
+          echo "$ALERTS" | jq -e --arg pkg "$package" \
+            '.[] | select(.securityVulnerability.package.name == $pkg)' > /dev/null
         }
         
         echo "Processing Trivy scan results..."
@@ -136,9 +136,8 @@ jobs:
             gh issue create \
               --title "Security: ${PKG_NAME} ${VERSION} has ${SEVERITY} vulnerability" \
               --body "$BODY" \
-              --label security \
-              --label "${SEVERITY,,}"
-            
+              --label security
+              
             CREATED_ISSUES=$((CREATED_ISSUES + 1))
             echo "Created issue for $PKG_NAME"
           else
