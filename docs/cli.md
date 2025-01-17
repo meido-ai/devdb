@@ -2,6 +2,10 @@
 
 ### Context
 ```bash
+# Configure the CLI
+export DEVDB_API=$(kubectl get svc -n devdb devdb-api -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+devdb context use http://$DEVDB_API
+
 # Set the DevDB server URL
 devdb context use http://localhost:3000
 

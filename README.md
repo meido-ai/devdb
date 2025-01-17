@@ -14,11 +14,12 @@
 
 </div>
 
-DevDB is a Kubernetes-native database management tool for developers and testers. It allows you to spin up isolated databases in seconds, making it perfect for development and testing environments.
+DevDB is a Kubernetes-native database platform for developers, testers, and CI systems. It allows you to spin up isolated, ephemeral databases in seconds, 
+making it painless to run apps with consistent data.
 
 - 🚀 **Quick Setup** - Spin up databases in seconds
-- 🛠️ **Team-Friendly** - Perfect for development and testing environments
-- ⚡ **Fast & Efficient** - Optimized for development workflows
+- 🛠️ **Team-Friendly** - Each developer gets their own database to work with
+- ⚡ **Fast & Efficient** - Optimized for development and testingworkflows
 - 🎯 **Kubernetes Native** - Runs on your existing K8s cluster
 
 ## 🚀 Getting Started
@@ -60,17 +61,16 @@ move devdb.exe %USERPROFILE%\bin\devdb.exe
 3. **Configure and Use**
 ```bash
 # Configure the CLI
-export DEVDB_API=$(kubectl get svc -n devdb devdb-api -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-devdb context use http://$DEVDB_API
+devdb context use $DEVDB_URL
 
 # Create a project
-devdb project create --name my-project
+devdb project create --name my-project --db-type postgres --db-version 15
 
 # Create a database
-devdb database create --project my-project --name dev-db
+devdb database create --project my-project
 
 # Get connection details
-devdb database show --project my-project --name dev-db
+devdb database show --project my-project
 ```
 
 

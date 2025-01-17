@@ -10,17 +10,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
-
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,26 +33,11 @@ jobs:
         with:
           version: v3.13.2
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Package Helm Chart
-        run: |
-          mkdir .cr-release-packages
-          helm package helm/ -d .cr-release-packages
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.6.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_SKIP_EXISTING: true
         with:
-          path: .cr-release-packages
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          charts_dir: helm
+          config: .github/cr.yaml

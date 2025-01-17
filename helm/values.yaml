@@ -5,6 +5,9 @@ image:
   tag: latest
   pullPolicy: Always
 
+api:
+  logLevel: info
+
 backupLocation: "/backup"
 
 aws:
@@ -24,6 +27,22 @@ aws:
     throughput: 125
     # Enable volume encryption
     encrypted: true
+
+ingress:
+  enabled: true
+  annotations:
+    # Default to Application Load Balancer
+    kubernetes.io/ingress.class: alb
+    # External facing load balancer
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # IP target type for ALB
+    alb.ingress.kubernetes.io/target-type: ip
+    # Default to HTTP only. For HTTPS, override these in your values file
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    # Optional: ACM certificate configuration
+    # alb.ingress.kubernetes.io/certificate-arn: ""
+    # alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
+    # alb.ingress.kubernetes.io/ssl-redirect: "443"
 
 s3:
   bucket: devdb-backups

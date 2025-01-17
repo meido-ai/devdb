@@ -44,8 +44,6 @@ spec:
         envFrom:
         - configMapRef:
             name: {{ .Release.Name }}-config
-        - secretRef:
-            name: {{ .Release.Name }}-secrets
         env:
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis:6379
