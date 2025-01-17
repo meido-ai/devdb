@@ -113,18 +113,17 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: title,
-                body: `
-                **Package:** ${vuln.PkgName}
-                **Current Version:** ${vuln.InstalledVersion}
-                **Fixed Version:** ${vuln.FixedVersion || 'Not available'}
-                **Severity:** ${vuln.Severity}
-                **Description:** ${vuln.Description}
-                
-                **References:**
-                ${vuln.References ? vuln.References.join('\n') : 'None'}
-                
-                This issue was automatically created by the Trivy security scanner.
-                `,
+                body: |
+                  **Package:** ${vuln.PkgName}
+                  **Current Version:** ${vuln.InstalledVersion}
+                  **Fixed Version:** ${vuln.FixedVersion || 'Not available'}
+                  **Severity:** ${vuln.Severity}
+                  **Description:** ${vuln.Description}
+
+                  **References:**
+                  ${vuln.References ? vuln.References.map(ref => `* ${ref}`).join('\n') : 'None'}
+
+                  This issue was automatically created by the Trivy security scanner.
                 labels: ['security', vuln.Severity.toLowerCase()]
               });
             }
