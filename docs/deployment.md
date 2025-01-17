@@ -57,9 +57,9 @@ EOF
 
 ## AWS Load Balancer Controller
 
-The load balancer controller is used to provide external access to the DevDB API, databas pods, and manage certificates.
+The load balancer controller is used to provide external access to the DevDB API, database pods, and manage certificates.
 
-1. Download the IAM policy for the Load Balancer Controller:
+### 1. Download the IAM policy for the Load Balancer Controller:
 
 ```bash
 curl \
@@ -68,7 +68,7 @@ curl \
   https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.7.1/docs/install/iam_policy.json
 ```
 
-2. Create the IAM policy:
+### 2. Create the IAM policy:
 
 ```bash
 aws iam create-policy \
@@ -76,7 +76,7 @@ aws iam create-policy \
   --policy-document file://iam-policy.json
 ```
 
-3. Create the service account and IAM role:
+### 3. Create the service account and IAM role:
 
 ```bash
 eksctl create iamserviceaccount \
@@ -89,7 +89,7 @@ eksctl create iamserviceaccount \
   --approve
 ```
 
-### Install the Load Balancer Controller:
+## Install the Load Balancer Controller
 
 ```bash
 # Add the EKS chart repository
@@ -115,43 +115,11 @@ helm upgrade --install \
 
 ## DevDB IAM Configuration
 
-DevDB requires specific IAM permissions to manage database volumes and backups efficiently. These permissions enable two key features:
-1. Initial databases are created from backup files in S3. DevDB needs access to the S3 buckets to download and create the primary database for a project.
-2. Volume snapshots for faster database spin-up times. DevDB uses snapshots to create pre-configured database volumes, significantly reducing the time needed to spin up new database instances.
-
-### Create the S3 Access Policy
-
-Create a policy for S3 access:
-
-```bash
-cat <<EOF > devdb-s3-policy.json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${BACKUP_BUCKET_NAME}",
-        "arn:aws:s3:::${BACKUP_BUCKET_NAME}/*"
-      ]
-    }
-  ]
-}
-EOF
-
-aws iam create-policy \
-  --policy-name="${CLUSTER_NAME}-devdb-s3-policy" \
-  --policy-document file://devdb-s3-policy.json
-```
+DevDB requires specific IAM permissions to manage database volumes efficiently. These permissions enable volume snapshots for faster database spin-up times. When a database is created, DevDB uses snapshots to create pre-configured database volumes, significantly reducing the time needed to spin up new database instances.
 
 ### Create the Volume Management Policy
 
-Create a policy for managing EBS volumes and snapshots. These permissions are essential for DevDB's performance optimization - it uses volume snapshots to create pre-configured database volumes, significantly reducing the time needed to spin up new database instances.
+Create a policy for managing EBS volumes and snapshots:
 
 ```bash
 cat <<EOF > devdb-volume-policy.json
@@ -185,7 +153,7 @@ aws iam create-policy \
 
 ### Create the Service Account
 
-Create a service account for DevDB that combines both policies:
+Create a service account for DevDB with the volume management policy:
 
 ```bash
 eksctl create iamserviceaccount \
@@ -194,13 +162,9 @@ eksctl create iamserviceaccount \
   --namespace="devdb-system" \
   --cluster="${CLUSTER_NAME}" \
   --role-name="${CLUSTER_NAME}-devdb-controller-role" \
-  --attach-policy-arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${CLUSTER_NAME}-devdb-s3-policy" \
   --attach-policy-arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy/${CLUSTER_NAME}-devdb-volume-policy" \
   --approve
 ```
-
-> [!NOTE]
-> Make sure to set the `BACKUP_BUCKET_NAME` environment variable to your S3 bucket name before running these commands.
 
 ### Installation
 
@@ -212,3 +176,6 @@ helm install devdb devdb/devdb \
   --namespace devdb \
   --set aws.region=us-west-2
 ```
+
+> [!NOTE]
+> When creating a project using the CLI, you'll need to provide the URL of a pg_dump file that is accessible to the DevDB API. This could be a pre-signed S3 URL or any other publicly accessible URL.

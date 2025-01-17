@@ -41,16 +41,6 @@ helm install devdb devdb/devdb \
 2. **Install the CLI**
 ```bash
 # Download the latest release for your platform
-# For Windows (64-bit):
-curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Windows_x86_64.zip
-unzip devdb_Windows_x86_64.zip
-move devdb.exe %USERPROFILE%\bin\devdb.exe
-
-# For Linux (64-bit):
-curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Linux_x86_64.tar.gz
-tar xzf devdb_Linux_x86_64.tar.gz
-sudo mv devdb /usr/local/bin/
-
 # For macOS (64-bit Intel):
 curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Darwin_x86_64.tar.gz
 tar xzf devdb_Darwin_x86_64.tar.gz
@@ -60,6 +50,11 @@ sudo mv devdb /usr/local/bin/
 curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Darwin_arm64.tar.gz
 tar xzf devdb_Darwin_arm64.tar.gz
 sudo mv devdb /usr/local/bin/
+
+# For Windows (64-bit):
+curl -LO https://github.com/meido-ai/devdb/releases/latest/download/devdb_Windows_x86_64.zip
+unzip devdb_Windows_x86_64.zip
+move devdb.exe %USERPROFILE%\bin\devdb.exe
 ```
 
 3. **Configure and Use**
