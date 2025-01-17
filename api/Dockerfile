@@ -5,7 +5,8 @@ WORKDIR /app
 
 # Copy package files first to leverage cache
 COPY package*.json ./
-RUN npm ci --only=production
+# Install all dependencies including dev dependencies for build
+RUN npm ci
 
 # Copy source and build
 COPY . .
@@ -26,7 +27,8 @@ WORKDIR /app
 
 # Copy only necessary files from builder
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+# Install only production dependencies in the final stage
+RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 
 # Use non-root user
