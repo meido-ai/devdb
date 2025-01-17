@@ -3,7 +3,7 @@
 <h2>DevDB - On-demand, isolated databases for development and testing</h2>
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-0530AD.svg)](https://opensource.org/licenses/Apache-2.0)
-![Platform Support](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-E5DDD4)
+![Platform Support](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-E5DDD4)
 [![API Tests](https://github.com/meido-ai/devdb/actions/workflows/api.yml/badge.svg)](https://github.com/meido-ai/devdb/actions/workflows/api.yml)
 [![CLI Tests](https://github.com/meido-ai/devdb/actions/workflows/cli.yml/badge.svg)](https://github.com/meido-ai/devdb/actions/workflows/cli.yml)
 [![CLI Version](https://img.shields.io/github/v/release/meido-ai/devdb?color=4D148C&label=cli&logo=github)](https://github.com/meido-ai/devdb/releases/latest)
@@ -61,7 +61,7 @@ move devdb.exe %USERPROFILE%\bin\devdb.exe
 ```bash
 # Configure the CLI
 export DEVDB_API=$(kubectl get svc -n devdb devdb-api -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-devdb config set-server http://$DEVDB_API
+devdb context use http://$DEVDB_API
 
 # Create a project
 devdb project create --name my-project
