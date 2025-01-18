@@ -1,0 +1,5 @@
+owner: meido-ai
+git-repo: devdb
+package-path: .cr-release-packages
+index-path: .cr-index
+charts-repo: https://meido-ai.github.io/devdb
