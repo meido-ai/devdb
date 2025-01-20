@@ -17,7 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.730.0",
-    "@aws-sdk/rds-signer": "^3.730.0",
+    "@aws-sdk/rds-signer": "^3.731.1",
     "@kubernetes/client-node": "^1.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
