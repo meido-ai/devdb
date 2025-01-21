@@ -14,12 +14,11 @@
 
 </div>
 
-DevDB is a Kubernetes-native database platform for developers, testers, and CI systems. It allows you to spin up isolated, ephemeral databases in seconds, 
-making it painless to run apps with consistent data.
+DevDB is a Kubernetes-native database platform for developers, testers, and CI systems. It allows you to spin up isolated, ephemeral databases in seconds, making it painless to run apps with consistent data.
 
 - 🚀 **Quick Setup** - Spin up databases in seconds
-- 🛠️ **Team-Friendly** - Each developer gets their own database to work with
-- ⚡ **Fast & Efficient** - Optimized for development and testingworkflows
+- 🛠️ **Database Independence** - Each developer gets their own database to work with
+- ⚡ **CI Integration** - Great for CI workflows as well as local development
 - 🎯 **Kubernetes Native** - Runs on your existing K8s cluster
 
 ## 🚀 Getting Started

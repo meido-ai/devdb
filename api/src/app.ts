@@ -2,7 +2,7 @@ import { IncomingMessage } from 'http';
 import express, { Request, Response } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import * as k8s from "@kubernetes/client-node";
+import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
 import { releaseHeader } from './middleware/releaseHeader';
 import { components } from './types/generated/api';
 import crypto from 'crypto';
@@ -24,9 +24,10 @@ app.use(bodyParser.json());
 app.use(releaseHeader);
 
 // Initialize Kubernetes client
-const kc = new k8s.KubeConfig();
+const kc = new KubeConfig();
 kc.loadFromDefault();
-const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+const k8sApi = kc.makeApiClient(CoreV1Api);
+const k8sApiExt = kc.makeApiClient(CustomObjectsApi);
 
 // Initialize S3 client
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-west-2' });
@@ -227,7 +228,7 @@ app.get("/projects/:projectId/databases", async (req: Request, res: Response) =>
       labelSelector: `devdb/projectId=${projectId}`
     });
 
-    const databases = pods.items.map((pod: k8s.V1Pod) => ({
+    const databases = pods.items.map((pod: any) => ({
       name: pod.metadata?.name || '',
       status: pod.status?.phase?.toLowerCase() || 'unknown',
       project: projectId,
@@ -257,10 +258,6 @@ app.post("/projects/:projectId/databases", async (req: Request, res: Response) =
     if (!project) {
       return res.status(404).send("Project not found");
     }
-
-    const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
-    const k8sApi = kc.makeApiClient(k8s.CoreV1Api);
 
     // Check if there are any existing pods for this project
     const existingPods = await k8sApi.listNamespacedPod({
@@ -302,7 +299,7 @@ app.post("/projects/:projectId/databases", async (req: Request, res: Response) =
     }
 
     // Create pod manifest
-    const podManifest: k8s.V1Pod = {
+    const podManifest: any = {
       apiVersion: "v1",
       kind: "Pod",
       metadata: {
@@ -391,7 +388,7 @@ app.post("/projects/:projectId/databases", async (req: Request, res: Response) =
     });
 
     // Create service for the pod
-    const serviceManifest: k8s.V1Service = {
+    const serviceManifest: any = {
       apiVersion: "v1",
       kind: "Service",
       metadata: {
@@ -499,7 +496,6 @@ async function createVolumeSnapshot(
     return null;
   }
 
-  const k8sApiExt = kc.makeApiClient(k8s.CustomObjectsApi);
   const snapshotName = `${pvcName}-snapshot-${Date.now()}`;
 
   const snapshotManifest = {
@@ -544,8 +540,6 @@ async function getLatestVolumeSnapshot(
     return null;
   }
 
-  const k8sApiExt = kc.makeApiClient(k8s.CustomObjectsApi);
-
   try {
     const response = await k8sApiExt.listNamespacedCustomObject({
       group: "snapshot.storage.k8s.io",
@@ -577,8 +571,8 @@ async function createPVCFromSnapshot(
   snapshotName: string,
   size: string = "10Gi",
   storageClass: string = 'ebs-sc'
-): Promise<k8s.V1PersistentVolumeClaim> {
-  const pvcManifest: k8s.V1PersistentVolumeClaim = {
+): Promise<any> {
+  const pvcManifest: any = {
     apiVersion: "v1",
     kind: "PersistentVolumeClaim",
     metadata: {
@@ -612,8 +606,8 @@ async function createPersistentVolumeClaim(
   namespace: string,
   size: string = "10Gi",
   storageClass: string = 'ebs-sc'
-): Promise<k8s.V1PersistentVolumeClaim> {
-  const pvc: k8s.V1PersistentVolumeClaim = {
+): Promise<any> {
+  const pvc: any = {
     apiVersion: "v1",
     kind: "PersistentVolumeClaim",
     metadata: {

@@ -1,12 +1,14 @@
+{{- if .Values.aws.ebs.snapshots.enabled }}
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: ebs-snapshot-class
+  name: {{ .Values.aws.ebs.snapshots.class }}
   annotations:
     snapshot.storage.kubernetes.io/is-default-class: "true"
 driver: ebs.csi.aws.com
 deletionPolicy: Delete
 parameters:
   type: gp3
-  iops: "3000"
-  encrypted: "true"
+  iops: "{{ .Values.aws.ebs.iops }}"
+  encrypted: "{{ .Values.aws.ebs.encrypted }}"
+{{- end }}

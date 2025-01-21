@@ -1,0 +1,49 @@
+{{- if or .Values.loadBalancer.api.enabled .Values.loadBalancer.database.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-nlb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    {{- if .Values.loadBalancer.api.enabled }}
+    {{- with .Values.loadBalancer.api.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- end }}
+    {{- if .Values.loadBalancer.database.enabled }}
+    {{- with .Values.loadBalancer.database.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- end }}
+spec:
+  type: LoadBalancer
+  ports:
+  {{- if .Values.loadBalancer.api.enabled }}
+  - name: http
+    port: 80
+    targetPort: 5000
+    protocol: TCP
+    # Use appProtocol to help AWS determine health checks
+    appProtocol: http
+  - name: https
+    port: 443
+    targetPort: 5000
+    protocol: TCP
+    appProtocol: https
+  {{- end }}
+  {{- if .Values.loadBalancer.database.enabled }}
+  - name: postgres-base
+    port: {{ .Values.loadBalancer.database.portRange.start }}
+    targetPort: 5432
+    protocol: TCP
+    appProtocol: postgresql
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "devdb.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

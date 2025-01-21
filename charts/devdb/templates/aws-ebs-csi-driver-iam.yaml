@@ -1,16 +1,11 @@
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ebs-csi-controller-sa
-  namespace: kube-system
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::${AWS_ACCOUNT_ID}:role/ebs-csi-driver-role
-
----
+{{- if and .Values.aws.ebs.enabled .Values.aws.ebs.snapshots.enabled }}
+# IAM policy for snapshot operations
 apiVersion: iam.aws.amazon.com/v1
 kind: IAMPolicy
 metadata:
-  name: ebs-csi-driver-policy
+  name: ebs-snapshot-policy
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
 spec:
   policy: |
     {
@@ -47,3 +42,4 @@ spec:
         }
       ]
     }
+{{- end }}
