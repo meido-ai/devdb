@@ -12,7 +12,7 @@
     "build:test": "tsc -p tsconfig.test.json",
     "generate:types": "openapi-typescript openapi/openapi.yaml -o src/types/generated/api.ts",
     "pretest": "npm run build:test",
-    "test": "jest"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.cjs"
   },
   "author": "",
   "license": "ISC",
