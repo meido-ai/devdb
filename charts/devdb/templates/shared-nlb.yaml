@@ -24,12 +24,6 @@ spec:
   type: LoadBalancer
   ports:
   {{- if .Values.loadBalancer.api.enabled }}
-  - name: http
-    port: 80
-    targetPort: 5000
-    protocol: TCP
-    # Use appProtocol to help AWS determine health checks
-    appProtocol: http
   - name: https
     port: 443
     targetPort: 5000

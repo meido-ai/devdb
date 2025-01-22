@@ -46,4 +46,4 @@ spec:
             name: {{ .Release.Name }}-config
         env:
         - name: REDIS_URL
-          value: redis://{{ .Release.Name }}-redis:6379
+          value: redis://{{ .Values.services.redis.name }}:{{ .Values.services.redis.port }}

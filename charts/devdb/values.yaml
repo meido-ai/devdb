@@ -35,7 +35,10 @@ aws:
 loadBalancer:
   api:
     enabled: true
-    annotations: {}
+    annotations:
+      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "{{ .Values.tls.certificateArn }}"
+      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
   database:
     enabled: true
     annotations: {}
@@ -66,6 +69,11 @@ s3:
   bucket: devdb-backups
   # Optional: specify a prefix for all backup objects
   prefix: ""
+
+# TLS configuration
+tls:
+  # ARN of the ACM certificate to use for HTTPS
+  certificateArn: ""  # e.g., "arn:aws:acm:region:account:certificate/certificate-id"
 
 # Resource requests and limits
 resources:

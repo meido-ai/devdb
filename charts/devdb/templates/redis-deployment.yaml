@@ -50,7 +50,9 @@ spec:
         - "yes"
         securityContext:
           runAsUser: 999
+          runAsGroup: 999
+          allowPrivilegeEscalation: false
       volumes:
       - name: redis-data
         persistentVolumeClaim:
-          claimName: {{ .Release.Name }}-redis-data
+          claimName: {{ .Values.services.redis.name }}-data

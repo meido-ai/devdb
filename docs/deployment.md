@@ -434,3 +434,42 @@ helm upgrade --install \
   --namespace devdb \
   -f values.yaml
 ```
+### Configuring DNS for the API
+
+The DevDB API is exposed through an AWS Network Load Balancer (NLB). After deployment, you can get the NLB's hostname using:
+
+```bash
+kubectl get service devdb-nlb
+```
+
+This will show output similar to:
+```
+NAME        TYPE           CLUSTER-IP       EXTERNAL-IP                                                                     PORT(S)                          AGE
+devdb-nlb   LoadBalancer  10.100.161.26    k8s-devdb-devdbnlb-f4542d4775-56abdb1aff55f979.elb.eu-west-1.amazonaws.com   80:32213/TCP,443:31340/TCP      19h
+```
+
+> [!NOTE]
+> When adding tags to the NLB, use the key=value format in the annotation:
+> ```yaml
+> service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: Name=devdb-nlb
+> ```
+> Do not use JSON format as it will cause the load balancer configuration to fail.
+
+To make the API accessible via a custom domain name we recommend creating a CNAME record in your DNS provider:
+
+#### DNS Provider Configuration (Recommended for Production)
+
+Create a CNAME record in your DNS provider pointing to the NLB's hostname:
+
+```
+api.devdb.yourdomain.com    CNAME    k8s-devdb-devdbnlb-<unique-id>.elb.<region>.amazonaws.com
+```
+
+After configuring DNS, you can verify the API is accessible using:
+
+```bash
+# Using your custom domain
+curl http://api.devdb.yourdomain.com/health
+
+# Expected response
+{"status":"healthy"}
