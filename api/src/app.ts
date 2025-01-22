@@ -3,8 +3,8 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
-import { releaseHeader } from './middleware/releaseHeader';
-import { components } from './types/generated/api';
+import { releaseHeader } from './middleware/releaseHeader.js';
+import { components } from './types/generated/api.js';
 import crypto from 'crypto';
 import Redis from 'ioredis';
 import { S3Client, HeadBucketCommand, CreateBucketCommand, HeadObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -29,8 +29,20 @@ kc.loadFromDefault();
 const k8sApi = kc.makeApiClient(CoreV1Api);
 const k8sApiExt = kc.makeApiClient(CustomObjectsApi);
 
+const AWS_REGION = process.env.AWS_REGION || 'us-west-2';
+const S3_BUCKET = process.env.S3_BUCKET || 'devdb-backups';
+const EBS_ENABLED = process.env.AWS_EBS_ENABLED === 'true';
+const EBS_STORAGE_CLASS = process.env.AWS_EBS_STORAGE_CLASS || 'ebs-sc';
+const EBS_SNAPSHOT_CLASS = process.env.AWS_EBS_SNAPSHOT_CLASS || 'ebs-snapshot-class';
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+// Get the current namespace from the Kubernetes environment
+const SHARED_NAMESPACE = fs.existsSync('/var/run/secrets/kubernetes.io/serviceaccount/namespace')
+  ? fs.readFileSync('/var/run/secrets/kubernetes.io/serviceaccount/namespace', 'utf8')
+  : 'default';
+const POSTGRES_SERVICE_NAME = 'shared-postgres-service';
+
 // Initialize S3 client
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-west-2' });
+const s3Client = new S3Client({ region: AWS_REGION });
 
 const validateURL = (url: string) => {
   const regex = new RegExp(
@@ -69,15 +81,15 @@ interface Config {
 
 const config: Config = {
   aws: {
-    region: process.env.AWS_REGION || 'us-west-2',
+    region: AWS_REGION,
     ebs: {
-      enabled: process.env.AWS_EBS_ENABLED === 'true',
-      storageClass: process.env.AWS_EBS_STORAGE_CLASS || 'ebs-sc',
-      snapshotClass: process.env.AWS_EBS_SNAPSHOT_CLASS || 'ebs-snapshot-class'
+      enabled: EBS_ENABLED,
+      storageClass: EBS_STORAGE_CLASS,
+      snapshotClass: EBS_SNAPSHOT_CLASS
     }
   },
   s3: {
-    bucket: process.env.S3_BUCKET || 'devdb-backups'
+    bucket: S3_BUCKET
   }
 };
 
@@ -96,14 +108,11 @@ const getStorageConfig = () => {
   };
 };
 
-const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+const redis = new Redis(REDIS_URL);
 
 function generateProjectId(owner: string, name: string): string {
   return `${owner}-${name}`;
 }
-
-const SHARED_NAMESPACE = 'devdb-databases';
-const POSTGRES_SERVICE_NAME = 'shared-postgres-service';
 
 import * as fs from 'fs';
 import * as path from 'path';
