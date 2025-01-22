@@ -1,37 +1,37 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-redis
+  name: {{ .Values.services.redis.name }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: redis
-    release: {{ .Release.Name }}
+    {{- include "common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: redis
-      release: {{ .Release.Name }}
+      app.kubernetes.io/name: {{ include "devdb.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: cache
   template:
     metadata:
       labels:
-        app: redis
-        release: {{ .Release.Name }}
+        app.kubernetes.io/name: {{ include "devdb.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: cache
     spec:
+      securityContext:
+        fsGroup: 999
       containers:
       - name: redis
         image: "redis:7.2-alpine"
         ports:
-        - containerPort: 6379
+        - containerPort: {{ .Values.services.redis.port }}
         resources:
-          requests:
-            cpu: "100m"
-            memory: "128Mi"
-          limits:
-            cpu: "200m"
-            memory: "256Mi"
+          {{- toYaml .Values.resources.redis | nindent 10 }}
         livenessProbe:
           tcpSocket:
-            port: 6379
+            port: {{ .Values.services.redis.port }}
           initialDelaySeconds: 15
           periodSeconds: 20
         readinessProbe:
@@ -50,7 +50,6 @@ spec:
         - "yes"
         securityContext:
           runAsUser: 999
-          fsGroup: 999
       volumes:
       - name: redis-data
         persistentVolumeClaim:

@@ -1,44 +1,44 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: devdb-api
-  namespace: devdb
+  name: {{ .Values.services.api.name }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "common.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: devdb-api
+      app.kubernetes.io/name: {{ include "devdb.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: api
   template:
     metadata:
       labels:
-        app: devdb-api
+        app.kubernetes.io/name: {{ include "devdb.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: api
     spec:
-      serviceAccountName: devdb  # Use the created service account
+      serviceAccountName: devdb
       containers:
-      - name: devdb-api
-        image: ghcr.io/meido-ai/devdb-api:latest
-        imagePullPolicy: Always
+      - name: {{ .Values.services.api.name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         ports:
-        - containerPort: 5000
+        - containerPort: {{ .Values.services.api.port }}
         resources:
-          requests:
-            cpu: "200m"
-            memory: "256Mi"
-          limits:
-            cpu: "500m"
-            memory: "512Mi"
+          {{- toYaml .Values.resources.api | nindent 10 }}
         livenessProbe:
           httpGet:
             path: /health
-            port: 5000
+            port: {{ .Values.services.api.port }}
           initialDelaySeconds: 15
           periodSeconds: 20
         readinessProbe:
           httpGet:
             path: /health
-            port: 5000
+            port: {{ .Values.services.api.port }}
           initialDelaySeconds: 5
           periodSeconds: 10
         envFrom:

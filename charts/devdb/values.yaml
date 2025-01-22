@@ -1,3 +1,4 @@
+# Number of API replicas to run
 replicaCount: 1
 
 image:
@@ -8,17 +9,19 @@ image:
 api:
   logLevel: info
 
-backupLocation: "/backup"
-
 aws:
-  region: us-west-2
+  # AWS Region for all AWS services
+  region: eu-west-1
   ebs:
-    # Set to true to enable EBS optimizations and volume snapshots
-    enabled: false
+    # Set to true to enable EBS optimizations
+    enabled: true
     # Storage class to use for database volumes
     storageClass: ebs-sc
-    # Snapshot class to use for volume snapshots
-    snapshotClass: ebs-snapshot-class
+    # Enable volume snapshots (requires snapshot controller)
+    snapshots:
+      enabled: false
+      # Only used if snapshots.enabled is true
+      class: ebs-snapshot-class
     # Default volume size for database PVCs
     volumeSize: 10Gi
     # IOPS for GP3 volumes
@@ -28,23 +31,55 @@ aws:
     # Enable volume encryption
     encrypted: true
 
-ingress:
-  enabled: true
-  annotations:
-    # Default to Application Load Balancer
-    kubernetes.io/ingress.class: alb
-    # External facing load balancer
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    # IP target type for ALB
-    alb.ingress.kubernetes.io/target-type: ip
-    # Default to HTTP only. For HTTPS, override these in your values file
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
-    # Optional: ACM certificate configuration
-    # alb.ingress.kubernetes.io/certificate-arn: ""
-    # alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS-1-2-2017-01
-    # alb.ingress.kubernetes.io/ssl-redirect: "443"
+# Load Balancer configuration
+loadBalancer:
+  api:
+    enabled: true
+    annotations: {}
+  database:
+    enabled: true
+    annotations: {}
+    # Port range for PostgreSQL databases (54321-54518)
+    portRange:
+      start: 54321
+      end: 54518
 
+# Service configurations
+services:
+  api:
+    name: devdb-api
+    port: 5000
+    type: ClusterIP
+  redis:
+    name: devdb-redis
+    port: 6379
+    type: ClusterIP
+    volumeSize: 1Gi
+  postgres:
+    name: shared-postgres-service
+    port: 5432
+    type: ClusterIP
+
+# S3 configuration for database backups
 s3:
+  # S3 bucket for storing database backups
   bucket: devdb-backups
   # Optional: specify a prefix for all backup objects
   prefix: ""
+
+# Resource requests and limits
+resources:
+  api:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  redis:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "200m"
+      memory: "256Mi"
