@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "DevDB API Server",
   "main": "src/app.ts",
+  "type": "module",
   "scripts": {
     "start": "ts-node src/app.ts",
     "dev": "nodemon src/app.ts",
