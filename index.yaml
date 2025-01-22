@@ -3,6 +3,16 @@ entries:
   devdb:
   - apiVersion: v2
     appVersion: 1.0.0
+    created: "2025-01-22T23:56:30.14947585Z"
+    description: A Helm chart to install and upgrade DevDB
+    digest: dab04b9b4d0b94ff27f7c38f74a2cad4a43c9511d7eb39d51822e94ce24b5cb6
+    name: devdb
+    type: application
+    urls:
+    - https://github.com/meido-ai/devdb/releases/download/devdb-0.1.2/devdb-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.0.0
     created: "2025-01-22T17:34:12.474527884Z"
     description: A Helm chart to install and upgrade DevDB
     digest: e9fd3686d36d79c01ec7daa9ffd8615bf0d66251c0052b39aae4bff766e67bd3
@@ -21,4 +31,4 @@ entries:
     urls:
     - https://github.com/meido-ai/devdb/releases/download/devdb-0.1.0/devdb-0.1.0.tgz
     version: 0.1.0
-generated: "2025-01-22T17:34:12.474535969Z"
+generated: "2025-01-22T23:56:30.149493403Z"
