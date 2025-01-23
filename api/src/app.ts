@@ -2,6 +2,7 @@ import { IncomingMessage } from 'http';
 import express, { Request, Response } from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
+import morgan from "morgan";
 import { KubeConfig, CoreV1Api, CustomObjectsApi } from "@kubernetes/client-node";
 import { releaseHeader } from './middleware/releaseHeader.js';
 import { components } from './types/generated/api.js';
@@ -19,9 +20,29 @@ type DatabaseCredentials = components['schemas']['DatabaseCredentials'];
 const app = express();
 const port: number = 5000;
 
-app.use(cors());
+// Add request logging
+app.use(morgan('combined'));
+
+// Configure CORS with specific options
+app.use(cors({
+  origin: true,
+  credentials: true,
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
+
 app.use(bodyParser.json());
 app.use(releaseHeader);
+
+// Configure server timeout and keep-alive
+const server = app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+// More aggressive timeout settings
+server.keepAliveTimeout = 120000; // 2 minutes
+server.headersTimeout = 121000; // Slightly higher than keepAliveTimeout
+server.setTimeout(125000); // Socket timeout
 
 // Initialize Kubernetes client
 const kc = new KubeConfig();
@@ -110,8 +131,8 @@ const getStorageConfig = () => {
 
 const redis = new Redis(REDIS_URL);
 
-function generateProjectId(owner: string, name: string): string {
-  return `${owner}-${name}`;
+function generateProjectId(): string {
+  return crypto.randomUUID();
 }
 
 import * as fs from 'fs';
@@ -162,9 +183,9 @@ app.post("/projects", async (req: Request, res: Response) => {
   try {
     const projectData: CreateProjectRequest = req.body;
 
-    // Validate required fields
-    if (!projectData.owner || !projectData.name) {
-      return res.status(400).send("Missing required fields");
+    // Validate required fields per OpenAPI spec
+    if (!projectData.owner || !projectData.name || !projectData.dbType || !projectData.dbVersion) {
+      return res.status(400).send("Missing required fields: owner, name, dbType, and dbVersion are required");
     }
 
     // Validate backup location format if provided
@@ -172,18 +193,18 @@ app.post("/projects", async (req: Request, res: Response) => {
       return res.status(400).send("Backup location must be an S3 URL (e.g., s3://bucket-name/path/to/backup.dump)");
     }
 
-    const projectId = generateProjectId(projectData.owner, projectData.name);
+    const projectId = generateProjectId();
     
     const newProject: Project = {
       id: projectId,
       owner: projectData.owner,
       name: projectData.name,
-      dbType: projectData.dbType || 'postgres', // Default to postgres if not specified
-      dbVersion: projectData.dbVersion || '15.3', // Default version if not specified
-      backupLocation: projectData.backupLocation || '', // Empty string if not provided
+      dbType: projectData.dbType,
+      dbVersion: projectData.dbVersion,
+      backupLocation: projectData.backupLocation || '',
       defaultCredentials: {
         username: 'devdb',
-        password: 'devdb',
+        password: generateSecurePassword(),
         database: 'devdb'
       }
     };
@@ -191,7 +212,17 @@ app.post("/projects", async (req: Request, res: Response) => {
     // Store project in Redis
     await redis.set(`project:${projectId}`, JSON.stringify(newProject));
     
-    res.status(201).json(newProject);
+    // Return project without credentials
+    const projectResponse = {
+      id: newProject.id,
+      owner: newProject.owner,
+      name: newProject.name,
+      dbType: newProject.dbType,
+      dbVersion: newProject.dbVersion,
+      backupLocation: newProject.backupLocation
+    };
+    
+    res.status(201).json(projectResponse);
   } catch (error) {
     console.error('Error creating project:', error);
     res.status(500).send("Internal server error");
@@ -204,7 +235,7 @@ app.get("/projects", async (req: Request, res: Response) => {
     
     // Get all project keys
     const projectKeys = await redis.keys('project:*');
-    const projects: Project[] = [];
+    const projects: Array<Omit<Project, 'defaultCredentials'>> = [];
     
     // Get all projects
     for (const key of projectKeys) {
@@ -212,7 +243,9 @@ app.get("/projects", async (req: Request, res: Response) => {
       if (projectJson) {
         const project = JSON.parse(projectJson) as Project;
         if (!owner || project.owner === owner) {
-          projects.push(project);
+          // Create a new object without credentials
+          const { defaultCredentials, ...projectWithoutCreds } = project;
+          projects.push(projectWithoutCreds);
         }
       }
     }
@@ -458,6 +491,26 @@ app.post("/projects/:projectId/databases", async (req: Request, res: Response) =
   }
 });
 
+app.delete("/projects/:projectId", async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    // Check if project exists
+    const project = await getProject(projectId);
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    // Delete the project from Redis
+    await redis.del(`project:${projectId}`);
+    
+    res.status(200).send("Project deleted successfully");
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    res.status(500).send("Internal server error");
+  }
+});
+
 app.delete("/projects/:projectId/databases/:name", async (req: Request, res: Response) => {
   const { projectId, name } = req.params;
 
@@ -651,10 +704,6 @@ async function getProject(projectId: string): Promise<Project | null> {
 // Add health check endpoint
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ status: "healthy" });
-});
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
 });
 
 function generateSecurePassword(length: number = 32): string {

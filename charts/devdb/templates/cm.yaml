@@ -10,3 +10,4 @@ data:
   AWS_EBS_ENABLED: {{ .Values.aws.ebs.enabled | quote }}
   LOG_LEVEL: {{ .Values.api.logLevel | quote }}
   KUBERNETES_NAMESPACE: {{ .Release.Namespace }}
+  RELEASE_VERSION: {{ .Chart.Version | quote }}

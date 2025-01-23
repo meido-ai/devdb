@@ -10,6 +10,9 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-type: "external"
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "3600"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: deregistration_delay.timeout_seconds=10,preserve_client_ip.enabled=true,proxy_protocol_v2.enabled=false,deregistration_delay.connection_termination.enabled=true
     {{- if .Values.loadBalancer.api.enabled }}
     {{- with .Values.loadBalancer.api.annotations }}
     {{- toYaml . | nindent 4 }}
