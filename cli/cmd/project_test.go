@@ -64,7 +64,9 @@ func TestProjectCommands(t *testing.T) {
 					"owner": "testuser",
 					"name": "testproject",
 					"dbType": "postgres",
-					"dbVersion": "15.3"
+					"dbVersion": "15.3",
+					"backupLocation": "",
+					"databases": []
 				}
 			]`))
 		case "DELETE /projects/testproject":
@@ -99,7 +101,8 @@ Details:
 			cmd:  projectListCmd,
 			args: []string{},
 			wantOutput: `Projects:
-- testproject (Owner: testuser)
+- testproject (ID: proj-123)
+  Owner: testuser
   DbType: postgres
   DbVersion: 15.3
 `,

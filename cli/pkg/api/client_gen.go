@@ -188,6 +188,9 @@ type ClientInterface interface {
 	// DeleteProject request
 	DeleteProject(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetProjectsProjectId request
+	GetProjectsProjectId(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetProjectsProjectIdDatabases request
 	GetProjectsProjectIdDatabases(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -241,6 +244,18 @@ func (c *Client) PostProjects(ctx context.Context, body PostProjectsJSONRequestB
 
 func (c *Client) DeleteProject(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteProjectRequest(c.Server, projectId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetProjectsProjectId(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectsProjectIdRequest(c.Server, projectId)
 	if err != nil {
 		return nil, err
 	}
@@ -427,6 +442,40 @@ func NewDeleteProjectRequest(server string, projectId string) (*http.Request, er
 	}
 
 	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetProjectsProjectIdRequest generates requests for GetProjectsProjectId
+func NewGetProjectsProjectIdRequest(server string, projectId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "projectId", runtime.ParamLocationPath, projectId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/projects/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -651,6 +700,9 @@ type ClientWithResponsesInterface interface {
 	// DeleteProjectWithResponse request
 	DeleteProjectWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*DeleteProjectResponse, error)
 
+	// GetProjectsProjectIdWithResponse request
+	GetProjectsProjectIdWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdResponse, error)
+
 	// GetProjectsProjectIdDatabasesWithResponse request
 	GetProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesResponse, error)
 
@@ -725,6 +777,28 @@ func (r DeleteProjectResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r DeleteProjectResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetProjectsProjectIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Project
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectsProjectIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectsProjectIdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -856,6 +930,15 @@ func (c *ClientWithResponses) DeleteProjectWithResponse(ctx context.Context, pro
 	return ParseDeleteProjectResponse(rsp)
 }
 
+// GetProjectsProjectIdWithResponse request returning *GetProjectsProjectIdResponse
+func (c *ClientWithResponses) GetProjectsProjectIdWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdResponse, error) {
+	rsp, err := c.GetProjectsProjectId(ctx, projectId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectsProjectIdResponse(rsp)
+}
+
 // GetProjectsProjectIdDatabasesWithResponse request returning *GetProjectsProjectIdDatabasesResponse
 func (c *ClientWithResponses) GetProjectsProjectIdDatabasesWithResponse(ctx context.Context, projectId string, reqEditors ...RequestEditorFn) (*GetProjectsProjectIdDatabasesResponse, error) {
 	rsp, err := c.GetProjectsProjectIdDatabases(ctx, projectId, reqEditors...)
@@ -963,6 +1046,32 @@ func ParseDeleteProjectResponse(rsp *http.Response) (*DeleteProjectResponse, err
 	response := &DeleteProjectResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectsProjectIdResponse parses an HTTP response from a GetProjectsProjectIdWithResponse call
+func ParseGetProjectsProjectIdResponse(rsp *http.Response) (*GetProjectsProjectIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectsProjectIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Project
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	}
 
 	return response, nil

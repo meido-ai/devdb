@@ -114,7 +114,8 @@ var projectListCmd = &cobra.Command{
 
         cmd.Println("Projects:")
         for _, project := range *projects {
-            cmd.Printf("- %s (Owner: %s)\n", project.Name, project.Owner)
+            cmd.Printf("- %s (ID: %s)\n", project.Name, project.Id)
+            cmd.Printf("  Owner: %s\n", project.Owner)
             cmd.Printf("  DbType: %s\n", project.DbType)
             cmd.Printf("  DbVersion: %s\n", project.DbVersion)
         }
@@ -151,9 +152,68 @@ var projectDeleteCmd = &cobra.Command{
     },
 }
 
+var projectShowCmd = &cobra.Command{
+    Use:   "show [project-id]",
+    Short: "Show project details",
+    Long:  `Show details of a specific project.`,
+    Args:  cobra.ExactArgs(1),
+    RunE: func(cmd *cobra.Command, args []string) error {
+        // Silence usage for runtime errors
+        defer func() { cmd.SilenceUsage = true }()
+
+        ctx := context.Background()
+        projectId := args[0]
+
+        client, err := api.NewClientWithResponses(apiURL)
+        if err != nil {
+            return fmt.Errorf("error creating client: %v", err)
+        }
+
+        resp, err := client.GetProjectsProjectIdWithResponse(ctx, projectId)
+        if err != nil {
+            return fmt.Errorf("error getting project: %v", err)
+        }
+
+        if resp.StatusCode() != 200 {
+            return fmt.Errorf("API returned status code %d", resp.StatusCode())
+        }
+
+        project := resp.JSON200
+        if project == nil {
+            return fmt.Errorf("project not found")
+        }
+
+        cmd.Printf("Project Details:\n")
+        cmd.Printf("ID: %s\n", project.Id)
+        cmd.Printf("Name: %s\n", project.Name)
+        cmd.Printf("Owner: %s\n", project.Owner)
+        cmd.Printf("DbType: %s\n", project.DbType)
+        cmd.Printf("DbVersion: %s\n", project.DbVersion)
+        if project.BackupLocation != "" {
+            cmd.Printf("BackupLocation: %s\n", project.BackupLocation)
+        }
+        if project.Databases != nil && len(*project.Databases) > 0 {
+            cmd.Printf("\nDatabases:\n")
+            for _, db := range *project.Databases {
+                cmd.Printf("- %s (Status: %s)\n", db.Name, db.Status)
+                if db.Host != nil {
+                    cmd.Printf("  Host: %s\n", *db.Host)
+                }
+                if db.Port != nil {
+                    cmd.Printf("  Port: %d\n", *db.Port)
+                }
+                if db.Username != nil {
+                    cmd.Printf("  Username: %s\n", *db.Username)
+                }
+            }
+        }
+        return nil
+    },
+}
+
 func init() {
     rootCmd.AddCommand(projectCmd)
-    projectCmd.AddCommand(projectCreateCmd, projectListCmd, projectDeleteCmd)
+    projectCmd.AddCommand(projectCreateCmd, projectListCmd, projectDeleteCmd, projectShowCmd)
 
     // Add flags for project create command
     projectCreateCmd.Flags().StringVar(&projectOwner, "owner", "", "Owner of the project (defaults to current user)")

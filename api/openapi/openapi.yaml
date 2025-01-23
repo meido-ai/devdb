@@ -40,6 +40,23 @@ paths:
                   $ref: '#/components/schemas/Project'
 
   /projects/{projectId}:
+    get:
+      summary: Get project details
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '404':
+          description: Project not found
     delete:
       operationId: deleteProject
       summary: Delete a project

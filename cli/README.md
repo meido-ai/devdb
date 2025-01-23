@@ -64,7 +64,7 @@ make build
 
 ### OpenAPI Integration
 
-The CLI uses `oapi-codegen` to generate type-safe client code from the OpenAPI specification in `api/openapi.yaml`. This ensures:
+The CLI uses `oapi-codegen` to generate type-safe client code from the OpenAPI specification in `../api/openapi/openapi.yaml`. This ensures:
 
 1. Type safety for API requests/responses
 2. Automatic client code generation
