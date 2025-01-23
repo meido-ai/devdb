@@ -40,6 +40,26 @@ export interface paths {
     };
   };
   "/projects/{projectId}": {
+    /** Get project details */
+    get: {
+      parameters: {
+        path: {
+          projectId: string;
+        };
+      };
+      responses: {
+        /** @description Project details */
+        200: {
+          content: {
+            "application/json": components["schemas"]["Project"];
+          };
+        };
+        /** @description Project not found */
+        404: {
+          content: never;
+        };
+      };
+    };
     /** Delete a project */
     delete: operations["deleteProject"];
   };

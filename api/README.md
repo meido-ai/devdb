@@ -31,7 +31,7 @@ npm run start
 
 ## API Documentation
 
-The API is defined using OpenAPI 3.0 specification in `../cli/api/openapi.yaml`. This single source of truth is used to:
+The API is defined using OpenAPI 3.0 specification in `openapi/openapi.yaml`. This single source of truth is used to:
 
 1. Generate TypeScript types
 2. Generate API documentation
@@ -40,7 +40,7 @@ The API is defined using OpenAPI 3.0 specification in `../cli/api/openapi.yaml`.
 
 ### TypeScript Type Generation
 
-The API uses [openapi-typescript](https://github.com/drwpow/openapi-typescript) to generate TypeScript types from the OpenAPI spec. Generated types are stored in `src/types/api.ts`.
+The API uses [openapi-typescript](https://github.com/drwpow/openapi-typescript) to generate TypeScript types from the OpenAPI spec. Generated types are stored in `src/types/generated/api.ts`.
 
 ```bash
 # Generate TypeScript types
@@ -60,7 +60,7 @@ import {
   CreateDatabaseRequestSchema,
   type Database,
   type CreateDatabaseRequest
-} from './types/api';
+} from './types/generated/api';
 
 // Validate request body
 app.post('/databases', (req, res) => {
@@ -100,7 +100,8 @@ npm run validate:spec
 api/
 ├── src/
 │   ├── types/
-│   │   └── api.ts        # Generated API types
+│   │   └── generated/
+│   │       └── api.ts        # Generated API types
 │   ├── routes/           # API route handlers
 │   ├── services/         # Business logic
 │   ├── middleware/       # Express middleware
@@ -120,7 +121,7 @@ api/
 
 ## Contributing
 
-1. Update the OpenAPI spec in `../cli/api/openapi.yaml`
+1. Update the OpenAPI spec in `openapi/openapi.yaml`
 2. Generate new types: `npm run generate:types`
 3. Validate the spec: `npm run validate:spec`
 4. Update the implementation

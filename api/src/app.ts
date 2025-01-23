@@ -213,16 +213,8 @@ app.post("/projects", async (req: Request, res: Response) => {
     await redis.set(`project:${projectId}`, JSON.stringify(newProject));
     
     // Return project without credentials
-    const projectResponse = {
-      id: newProject.id,
-      owner: newProject.owner,
-      name: newProject.name,
-      dbType: newProject.dbType,
-      dbVersion: newProject.dbVersion,
-      backupLocation: newProject.backupLocation
-    };
-    
-    res.status(201).json(projectResponse);
+    const { defaultCredentials, ...projectWithoutCreds } = newProject;
+    res.status(201).json(projectWithoutCreds);
   } catch (error) {
     console.error('Error creating project:', error);
     res.status(500).send("Internal server error");
@@ -253,6 +245,34 @@ app.get("/projects", async (req: Request, res: Response) => {
     res.json(projects);
   } catch (error) {
     console.error('Error fetching projects:', error);
+    res.status(500).send("Internal server error");
+  }
+});
+
+app.get("/projects/:projectId", async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    const project = await getProject(projectId);
+    if (!project) {
+      return res.status(404).send("Project not found");
+    }
+
+    // Ensure all required fields are present
+    if (!project.id || !project.owner || !project.name || !project.dbType || !project.dbVersion || !project.defaultCredentials) {
+      console.error('Project in Redis is missing required fields:', project);
+      return res.status(500).send("Project data is corrupted");
+    }
+
+    // Return project without credentials
+    const { defaultCredentials, ...projectWithoutCreds } = project;
+    res.json({
+      ...projectWithoutCreds,
+      backupLocation: project.backupLocation || '', // Ensure backupLocation is always present
+      databases: project.databases || [] // Ensure databases is always present
+    });
+  } catch (error) {
+    console.error('Error getting project:', error);
     res.status(500).send("Internal server error");
   }
 });
