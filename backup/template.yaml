@@ -10,6 +10,17 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Subnets where the Lambda function will run
 
+  DbUser:
+    Type: String
+    Description: Username for connecting to RDS instances
+    NoEcho: true
+
+  DbPassword:
+    Type: String
+    Description: Password for connecting to RDS instances
+    NoEcho: true
+    MinLength: 8
+
 Resources:
   BackupLambdaRole:
     Type: AWS::IAM::Role
@@ -62,10 +73,14 @@ Resources:
         SubnetIds: !Ref SubnetIds
       Environment:
         Variables:
-          DB_USER: !Ref 'AWS::NoValue'     # To be set during deployment
-          DB_PASSWORD: !Ref 'AWS::NoValue'  # To be set during deployment
+          DB_USER: !Ref DbUser
+          DB_PASSWORD: !Ref DbPassword
 
 Outputs:
   BackupLambdaArn:
     Description: ARN of the backup Lambda function
     Value: !GetAtt BackupLambdaFunction.Arn
+  
+  BackupLambdaSecurityGroupId:
+    Description: ID of the security group attached to the Lambda function
+    Value: !Ref BackupLambdaSecurityGroup

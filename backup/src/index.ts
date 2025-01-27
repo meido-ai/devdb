@@ -10,10 +10,11 @@ interface BackupEvent {
   targetBucket: string;
   targetRegion: string;
   targetKey?: string;
+  databaseName?: string;  // Optional database name, will use RDS default if not specified
 }
 
 export const handler = async (event: BackupEvent) => {
-  const { rdsInstance, sourceRegion, targetBucket, targetRegion, targetKey } = event;
+  const { rdsInstance, sourceRegion, targetBucket, targetRegion, targetKey, databaseName } = event;
   
   // Initialize RDS client in source region
   const rdsClient = new RDSClient({ region: sourceRegion });
@@ -32,14 +33,15 @@ export const handler = async (event: BackupEvent) => {
 
     const host = instance.Endpoint?.Address;
     const port = instance.Endpoint?.Port;
-    const dbName = instance.DBName;
+    // Use provided database name or fall back to RDS instance default
+    const dbName = databaseName || instance.DBName;
 
     if (!host || !port || !dbName) {
       throw new Error('Missing required RDS instance details');
     }
 
     // Create backup using pg_dump
-    const backupPath = join('/tmp', `${rdsInstance}-backup.dump`);
+    const backupPath = join('/tmp', `${rdsInstance}-${dbName}-backup.dump`);
     const pgDumpProcess = spawn('pg_dump', [
       '-h', host,
       '-p', port.toString(),
@@ -70,7 +72,7 @@ export const handler = async (event: BackupEvent) => {
 
     // Upload to S3
     const s3Client = new S3Client({ region: targetRegion });
-    const key = targetKey || `backups/${rdsInstance}/${new Date().toISOString()}.dump`;
+    const key = targetKey || `backups/${rdsInstance}/${dbName}/${new Date().toISOString()}.dump`;
     
     await s3Client.send(new PutObjectCommand({
       Bucket: targetBucket,
