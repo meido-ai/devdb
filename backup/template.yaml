@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'DevDB RDS Backup Lambda Function'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the Lambda function will run (must have access to RDS)
+  
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets where the Lambda function will run
+
+  DbUser:
+    Type: String
+    Description: Username for connecting to RDS instances
+    NoEcho: true
+
+  DbPassword:
+    Type: String
+    Description: Password for connecting to RDS instances
+    NoEcho: true
+    MinLength: 8
+
+Resources:
+  BackupLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: BackupPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                  - s3:PutObject
+                Resource: '*'
+
+  BackupLambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for backup Lambda function
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  BackupLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: dist/index.handler
+      Runtime: nodejs18.x
+      Timeout: 900  # 15 minutes
+      MemorySize: 1024
+      Role: !GetAtt BackupLambdaRole.Arn
+      Code:
+        S3Bucket: !Ref 'AWS::NoValue'  # To be filled during deployment
+        S3Key: !Ref 'AWS::NoValue'     # To be filled during deployment
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref BackupLambdaSecurityGroup
+        SubnetIds: !Ref SubnetIds
+      Environment:
+        Variables:
+          DB_USER: !Ref DbUser
+          DB_PASSWORD: !Ref DbPassword
+
+Outputs:
+  BackupLambdaArn:
+    Description: ARN of the backup Lambda function
+    Value: !GetAtt BackupLambdaFunction.Arn
+  
+  BackupLambdaSecurityGroupId:
+    Description: ID of the security group attached to the Lambda function
+    Value: !Ref BackupLambdaSecurityGroup

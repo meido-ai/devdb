@@ -1,3 +1,5 @@
 node_modules
 .env
 api/dist
+backup/dist
+function.zip
